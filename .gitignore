@@ -1,0 +1,19 @@
+# Maintainer notes, plans and setup steps: kept local, never published
+_private/
+*.local.md
+notes/
+
+# Test output
+*.png
+test-results/
+playwright-report/
+
+# Tools and OS files
+node_modules/
+.firebase/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

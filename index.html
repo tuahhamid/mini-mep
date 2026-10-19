@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mini MEP</title>
+<script src="firebase-config.js"></script>
+<script type="module" src="net.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Toy v0: rough playable test of the core loop. Grey-box on purpose; tokens copied from the prototype. */
+:root{
+  --bg:#ECF0EE; --panel:#F9FBFA; --ink:#17262A; --muted:#5A6A6D; --line:#C8D2CF; --soft:#E1E8E5;
+  --accent:#0E6A88; --danger:#C2372C; --warn:#B87A0C; --ok:#2F7D4F; --area:#7E888B;
+  --room:#E3E9E6; --corr:#F4F6F5; --beam:#B7C0C4; --riser:#CFD9E3; --valid:#BFE3CD;
+  --t-acmv:#4F86C2; --t-chw:#167A82; --t-elec:#C4452F; --t-elv:#3D9A4D; --t-ps:#8A5A2E; --t-fire:#DE7712; --t-mg:#7A4EAE;
+  --go-ink:#FFFFFF;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1719; --panel:#152125; --ink:#E2EBE9; --muted:#93A4A6; --line:#2B3B3F; --soft:#1C2A2E;
+  --accent:#56B9D9; --danger:#F0695C; --warn:#E2A63A; --ok:#5CC48A; --area:#6B7679;
+  --room:#1D2A2E; --corr:#18242A; --beam:#4A585E; --riser:#253744; --valid:#1F4A33;
+  --t-acmv:#79A9DD; --t-chw:#3FB3BA; --t-elec:#EA6D57; --t-elv:#62C072; --t-ps:#C08A58; --t-fire:#F39A3D; --t-mg:#A983DB;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1719; --panel:#152125; --ink:#E2EBE9; --muted:#93A4A6; --line:#2B3B3F; --soft:#1C2A2E;
+  --accent:#56B9D9; --danger:#F0695C; --warn:#E2A63A; --ok:#5CC48A; --area:#6B7679;
+  --room:#1D2A2E; --corr:#18242A; --beam:#4A585E; --riser:#253744; --valid:#1F4A33;
+  --t-acmv:#79A9DD; --t-chw:#3FB3BA; --t-elec:#EA6D57; --t-elv:#62C072; --t-ps:#C08A58; --t-fire:#F39A3D; --t-mg:#A983DB;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--display);font-size:14px;overflow:hidden}
+/* Full-screen board: header + week bar on top, section and plan fill the rest */
+.wrap{height:100%;display:flex;flex-direction:column;gap:8px;padding:10px 16px 14px}
+header{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:space-between}
+h1{font-size:19px;margin:0}
+h1 small{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--muted);margin-left:6px}
+.sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--muted)}
+.chip b{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+.chip.bad{border-color:var(--danger)} .chip.bad b{color:var(--danger)}
+.pips{display:inline-flex;gap:4px} .pip{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--area)} .pip.on{background:var(--danger);border-color:var(--danger)}
+button{font-family:var(--display);font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;padding:6px 11px;cursor:pointer}
+button:hover{border-color:var(--accent)} button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.weekbar{height:6px;background:var(--soft);border-radius:999px;overflow:hidden}
+.weekbar div{height:100%;width:0;background:var(--accent);transition:width .2s linear}
+.board{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,32%) 1fr;gap:10px}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-width:0;min-height:0;display:flex;overflow:hidden}
+.card h2{position:absolute;top:10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600;pointer-events:none}
+#secCard h2{right:14px} #planCard h2{left:14px}
+svg{display:block;user-select:none;touch-action:none}
+#sec,#plan{flex:1;min-height:0;width:100%;height:100%}
+@media (max-width:900px){
+  body{overflow:auto} .wrap{height:auto} .board{grid-template-columns:1fr}
+  #sec{height:auto;aspect-ratio:482/414} #plan{height:auto;aspect-ratio:1000/560}
+}
+svg text{font-family:var(--display)}
+svg .lbl{font-size:11px;fill:var(--muted);letter-spacing:.04em}
+svg .mono{font-family:var(--mono)}
+svg .cell{fill:var(--corr);stroke:var(--line);stroke-width:1}
+svg .cell.valid{fill:var(--valid);stroke:var(--ok)}
+svg .tokbg{fill:var(--panel);stroke:var(--line);stroke-width:1.2}
+svg .tok{cursor:grab} svg .tok.nofit .tokbg{stroke:var(--danger);stroke-width:2}
+svg .tok.sel .tokbg,svg .run.sel .shape{stroke:var(--accent);stroke-width:3}
+svg .run{cursor:grab} svg .run.fixed,svg .run.locked{cursor:not-allowed}
+svg .run.locked .shape,svg .run.locked .pline{filter:grayscale(1);opacity:.55}
+svg .run.dragging{opacity:.25}
+svg .shape{stroke:var(--panel);stroke-width:1.5}
+svg .rid{font-family:var(--mono);font-size:10px;font-weight:500;fill:var(--ink);paint-order:stroke;stroke:var(--panel);stroke-width:3px}
+svg .dim{opacity:.18}
+svg .flash{animation:flash 0.6s ease-in-out 6 alternate}
+@keyframes flash{to{opacity:.2}}
+/* Animations survive the 5 Hz re-render: each element gets a negative animation-delay equal to its age */
+svg .pop{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+svg .pulse{fill:none;stroke:var(--accent);stroke-width:3;transform-box:fill-box;transform-origin:center;animation:pulse 1s ease-out 3 both}
+@keyframes pulse{from{transform:scale(.9);opacity:.9}to{transform:scale(1.35);opacity:0}}
+svg .doorpulse{fill:var(--accent);transform-box:fill-box;transform-origin:center;animation:doorpulse 1s ease-out 3 both}
+@keyframes doorpulse{from{transform:scale(.6);opacity:.7}to{transform:scale(2.4);opacity:0}}
+svg .slot{fill:none;stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4}
+svg .ric{color:var(--muted)} svg .ric.hot{color:var(--accent)}
+svg .door.hot{stroke:var(--accent);stroke-width:4}
+svg .hidden{stroke-dasharray:4 4}
+svg .fxbox{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}
+.hov{position:absolute;pointer-events:none;background:var(--ink);color:var(--panel);font-size:15px;line-height:1.5;padding:10px 14px;border-radius:9px;z-index:3;max-width:380px;display:none}
+.hov b{font-family:var(--mono);font-weight:500}
+.ic{display:inline-block;width:14px;height:14px;vertical-align:-2px;margin-right:3px;color:var(--muted)}
+svg .room{fill:var(--room);stroke:var(--line)}
+svg .wall{stroke:var(--ink);stroke-width:2.5}
+svg .floorline{stroke:var(--ink);stroke-width:2;stroke-dasharray:6 4}
+svg .mk{cursor:pointer}
+svg .mk .bg{fill:var(--panel)}
+svg .mk.active .ring{stroke:var(--line);stroke-width:4;fill:none}
+svg .mk.active .arc{stroke:var(--danger);stroke-width:4;fill:none}
+svg .mk.active text{fill:var(--danger)}
+svg .mk.deferred .ring{stroke:var(--warn);stroke-width:3;fill:var(--panel);stroke-dasharray:3 3}
+svg .mk.deferred text{fill:var(--warn)}
+svg .mk.resolved .ring{stroke:var(--ok);stroke-width:2;fill:var(--panel)}
+svg .mk.resolved text{fill:var(--ok)}
+svg .mk.area .ring{fill:var(--area);opacity:.9;stroke:none}
+svg .mk.area text{fill:var(--panel);font-weight:700}
+svg .mk text{font-family:var(--mono);font-size:10px;font-weight:600;text-anchor:middle;dominant-baseline:central}
+/* Card dock: round icons floating over the plan, like the tool buttons in Mini Motorways */
+.dock{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:18px;z-index:2}
+.cardic{position:relative;width:78px;height:78px;border-radius:50%;padding:0;display:grid;place-items:center;background:var(--panel);border:1.5px solid var(--line);box-shadow:0 3px 10px rgba(0,0,0,.14);color:var(--ink)}
+.cardic svg{width:42px;height:42px}
+.cardic .n{position:absolute;top:-4px;right:-4px;min-width:27px;height:27px;padding:0 6px;border-radius:14px;background:var(--ink);color:var(--panel);font:600 14px var(--mono);display:grid;place-items:center}
+.cardic .tip{position:absolute;bottom:88px;left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--ink);color:var(--panel);font-size:14.5px;font-weight:600;padding:6px 12px;border-radius:7px;opacity:0;pointer-events:none;transition:opacity .15s}
+.cardic .tip i{font-style:normal;font-family:var(--mono);opacity:.7;margin-right:5px}
+.cardic:hover .tip{opacity:1}
+.cardic.armed{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent),0 3px 10px rgba(0,0,0,.14);color:var(--accent)}
+.cardic:disabled{opacity:.35}
+.cardic.new{animation:popin .6s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes popin{from{transform:scale(0)}to{transform:scale(1)}}
+.armedline{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);background:var(--accent);color:var(--panel);font-size:15px;font-weight:600;padding:7px 16px;border-radius:999px;white-space:nowrap;z-index:2}
+.armedline:empty{display:none}
+/* Small round tools, top right of the plan */
+.tools{position:absolute;top:10px;right:12px;display:flex;gap:10px;z-index:12}
+.tool{position:relative;width:50px;height:50px;padding:0;border-radius:50%;display:grid;place-items:center;background:var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.1)}
+.tool svg{width:24px;height:24px}
+.tool .n{position:absolute;top:-4px;right:-4px;min-width:21px;height:21px;padding:0 5px;border-radius:11px;background:var(--accent);color:var(--panel);font:600 12px var(--mono);display:grid;place-items:center}
+.tool .n:empty{display:none}
+.drawer{position:absolute;top:68px;right:10px;width:min(440px,calc(100% - 20px));max-height:calc(100% - 160px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:10px 12px;z-index:13;display:none}
+.drawer.open{display:block}
+.drawer h3{margin:0 0 8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+ol.log{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+ol.log li{font-size:14px;line-height:1.45;padding:4px 9px;border-left:3px solid var(--line)}
+ol.log li .w{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-right:5px}
+ol.log li.decision{border-color:var(--ok)} ol.log li.defer,ol.log li.due{border-color:var(--warn)}
+ol.log li.area{border-color:var(--area)} ol.log li.knock,ol.log li.auto{border-color:var(--danger)}
+/* Card intro in modals: icon + name + description */
+.cardrow{display:grid;grid-template-columns:60px 1fr;gap:4px 16px;align-items:center;text-align:left}
+.cardrow .ci{width:58px;height:58px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;grid-row:span 2;background:var(--panel)}
+.cardrow .ci svg{width:32px;height:32px}
+.cardrow b{font-size:19px} .cardrow span{font-size:15.5px;line-height:1.4;color:var(--muted)}
+.hand0{display:grid;gap:14px;margin:0 0 20px}
+.keys{font-size:14.5px;color:var(--muted);margin:-4px 0 18px}
+.nickrow{display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center;margin:0 0 20px}
+.nickrow label{grid-column:1/-1;font-weight:600;font-size:16px}
+.nickrow input{font:600 20px var(--display);padding:10px 14px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-width:0}
+.nickrow input:focus{outline:none;border-color:var(--accent)}
+.nickrow span{grid-column:1/-1;font-size:14.5px;color:var(--muted)}
+#nick{grid-column:1/-1;font-size:24px}
+ol.lb{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:4px}
+ol.lb li{display:grid;grid-template-columns:28px 1fr auto;gap:2px 10px;align-items:baseline;font-size:15px;padding:6px 8px;border-radius:8px}
+ol.lb li.me{background:var(--soft);font-weight:600}
+ol.lb .rk{font-family:var(--mono);color:var(--muted)} ol.lb .sc{font-family:var(--mono);font-size:17px} ol.lb .sub{grid-column:2/-1;font-size:12.5px;font-weight:400;color:var(--muted);margin:0}
+svg .run.cxing .shape{stroke:var(--danger);stroke-width:2.5}
+svg .mk.urgent{transform-box:fill-box;transform-origin:center;animation:urgent .8s ease-in-out infinite}
+@keyframes urgent{50%{transform:scale(1.18)}}
+.gameover{position:fixed;inset:0;z-index:15;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,18,20,.6);cursor:pointer}
+.gameover.show{display:flex}
+.gameover span{font:700 clamp(72px,14vw,180px)/.92 var(--display);letter-spacing:.06em;color:var(--go-ink);text-shadow:0 7px 0 var(--danger),0 16px 40px rgba(0,0,0,.45)}
+.gameover .g{animation:goDrop .55s cubic-bezier(.3,1.45,.6,1) both}
+.gameover .o{animation:goRise .55s cubic-bezier(.3,1.45,.6,1) .4s both}
+.gameover.show{animation:goShake .4s ease-out .9s both}
+.gameover small{margin-top:28px;font:600 16px var(--display);color:var(--go-ink);opacity:.75;animation:goFade .4s 1.3s both}
+@keyframes goDrop{from{transform:translateY(-70vh) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes goRise{from{transform:translateY(70vh) rotate(8deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes goShake{20%{transform:translate(-9px,5px)}40%{transform:translate(8px,-6px)}60%{transform:translate(-5px,3px)}80%{transform:translate(3px,-2px)}}
+@keyframes goFade{from{opacity:0}to{opacity:.75}}
+@media (prefers-reduced-motion:reduce){.gameover span,.gameover.show,.gameover small{animation:none}}
+#cd.show{animation:none}
+.gameover .cdn{font:700 clamp(110px,22vw,260px)/1 var(--display);color:var(--go-ink);text-shadow:0 8px 0 var(--accent),0 16px 40px rgba(0,0,0,.45)}
+.gameover .cdn.pop{animation:popin .45s cubic-bezier(.3,1.6,.5,1) both}
+.lobby{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;min-height:44px}
+.lobby span{padding:8px 16px;border-radius:999px;background:var(--soft);border:1.5px solid var(--line);font-weight:600;font-size:17px}
+.lobby span.me{border-color:var(--accent);color:var(--accent)}
+.modal details{margin:0 0 16px} .modal summary{cursor:pointer;font-weight:600;font-size:17px;margin-bottom:10px}
+.pinline{font-size:17px} .pinline b{font-family:var(--mono)}
+#pin{grid-column:1/-1;font:700 34px var(--mono);letter-spacing:.25em;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(10,18,20,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+.overlay.show{display:flex}
+.modal{max-height:calc(100vh - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:780px;width:100%;padding:30px 36px;box-shadow:0 14px 50px rgba(0,0,0,.28);font-size:17px}
+.modal h2{margin:0 0 12px;font-size:30px;line-height:1.2}
+.modal p{margin:0 0 16px;line-height:1.55;color:var(--muted);font-size:17px}
+.modal ol{margin:0 0 20px;padding-left:24px;line-height:1.55;display:grid;gap:10px;font-size:17px}
+.modal button{font-size:17px;padding:11px 24px;border-radius:10px}
+.modal .bar{display:flex;flex-wrap:wrap;gap:12px}
+.offers{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+.offers button{text-align:left;padding:18px;font-weight:500;border-width:1.5px}
+.offers.three{grid-template-columns:repeat(3,1fr)}
+svg .bandlbl{cursor:pointer} svg .bandlbl:hover text{fill:var(--accent)}
+svg .hit{fill:transparent}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 20px}
+.stats div{border:1px solid var(--line);border-radius:10px;padding:12px 8px;text-align:center;font-size:14.5px;color:var(--muted)}
+.stats b{display:block;font-family:var(--mono);font-size:32px;color:var(--ink);font-weight:500}
+@media (max-width:640px){.offers,.offers.three{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.modal{padding:22px 20px}}
+.toast{position:fixed;left:50%;top:64px;transform:translateX(-50%) translateY(-12px);opacity:0;pointer-events:none;background:var(--ink);color:var(--panel);padding:12px 22px;border-radius:999px;font-size:16px;font-weight:600;transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px);text-align:center;z-index:20}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)} .toast.warn{background:var(--danger)}
+</style>
+</head>
+<body>
+<!-- Room icons, shared by every SVG and the HTML lists through <use> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ic-bed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11.5" r="2"/></symbol>
+    <symbol id="ic-cross" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></symbol>
+    <symbol id="ic-drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></symbol>
+    <symbol id="ic-nurse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></symbol>
+    <symbol id="ic-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v9l-9 5-9-5zM3 8l9 5 9-5M12 13v9"/></symbol>
+    <symbol id="ic-desk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 21h8M12 16v5"/></symbol>
+    <!-- Decision cards -->
+    <symbol id="ic-c-drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5" fill="currentColor" stroke="none"/><path d="M2 9h4.5l3 7h5l3-7H22"/></symbol>
+    <symbol id="ic-c-reroute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h3M19 18h3M5 18c0-10 14-10 14 0"/><path d="M15.5 15.5L19 18l2.5-3.5"/><path d="M8 18h8" stroke-dasharray="1.5 3"/></symbol>
+    <symbol id="ic-c-defer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></symbol>
+    <symbol id="ic-c-height" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18M3 21h18M12 6.5v11M9 9.5l3-3 3 3M9 14.5l3 3 3-3"/></symbol>
+    <!-- Tools -->
+    <symbol id="ic-t-log" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+    <symbol id="ic-t-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 13v4M8.5 20h7M10 17h4"/></symbol>
+    <symbol id="ic-t-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="ic-t-restart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+  </defs>
+</svg>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Mini MEP <small>Segment Routing · test build</small></h1>
+      <div class="sub">Fit services from the riser into the corridor void. Keep the crossings decided, not parked.</div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+  <div class="weekbar" title="Week progress"><div id="weekfill"></div></div>
+  <div class="board">
+    <section class="card" id="secCard">
+      <h2>Section at the riser</h2>
+      <svg id="sec" aria-label="Corridor section"><g id="secMain"></g><g id="ghost" pointer-events="none"></g></svg>
+    </section>
+    <section class="card" id="planCard">
+      <h2>Plan</h2>
+      <svg id="plan" aria-label="Corridor plan"><g id="planMain"></g><g id="fx" pointer-events="none"></g></svg>
+      <div class="hov" id="hov"></div>
+      <div class="tools">
+        <button class="tool" id="bBoard" aria-label="Leaderboard" title="Leaderboard" hidden><svg><use href="#ic-t-trophy"/></svg></button>
+        <button class="tool" id="bLog" aria-label="Decision log" title="Decision log"><svg><use href="#ic-t-log"/></svg><span class="n" id="logN"></span></button>
+        <button class="tool" id="bPause" aria-label="Pause" title="Pause (Space)"><svg><use href="#ic-t-pause"/></svg></button>
+        <button class="tool" id="bRestart" aria-label="Restart" title="Restart (R)"><svg><use href="#ic-t-restart"/></svg></button>
+      </div>
+      <div class="drawer" id="drawer"><h3>Decision log</h3><ol class="log" id="log"></ol></div>
+      <div class="drawer" id="board"><h3 id="boardTitle">Leaderboard</h3><ol class="lb" id="lb"></ol></div>
+      <div class="armedline" id="armed"></div>
+      <div class="dock" id="dock"></div>
+    </section>
+  </div>
+</div>
+<div class="gameover" id="cd" role="status"><span class="cdn" id="cdn">3</span></div>
+<div class="gameover" id="go" role="alert"><span class="g">GAME</span><span class="o">OVER</span><small>Click to continue</small></div>
+<div class="overlay" id="ov"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+// ---------- Tuning: every number worth playing with lives here ----------
+const CONFIG={
+  lanes:5, layers:4, maxLayers:6,            // corridor grid: lanes sideways x layers high (the height budget)
+  heightWeeks:[2,4],
+  version:'web-v0.5',
+  countdownMs:800,                            // each step of the 3-2-1-GO! countdown before a live start
+  gameOverMs:2400,                            // how long GAME OVER shows before the stall dialog (0 skips it)
+  round:{round:1,seed:1019},                  // ranked round used until the owner starts one online                          // the architect gives +100 mm at the start of these weeks, and never again
+  bands:[['pipe'],['pipe','duct'],['duct','tray'],['tray']],   // starting band agreement, bottom layer first
+  rooms:[{name:'Ward 1',icon:'bed'},{name:'Treatment',icon:'cross'},{name:'Clean utility',icon:'drop'},
+         {name:'Nurse base',icon:'nurse'},{name:'Store',icon:'box'},{name:'Office',icon:'desk'}],
+  speed:1,                                    // game-time multiplier
+  chances:1,                                  // "one more go" rescues per game
+  firstSpawn:2, spawnEvery:10, spawnSpeedup:0.9, minSpawn:4.5,   // seconds
+  queueMax:3,                                 // waiting services before a modeller places one by default
+  clashTime:20,                               // seconds before an open crossing hardens into a Clash Area
+  weekLen:45, maxAreas:3, knockOnFrom:2,
+  hand:{drop:1,reroute:1,defer:1},
+  opening:['SA','ELV','CHW','PWR'],           // first arrivals in order, so the bands show up early
+  preplaced:[{type:'SOIL',door:2,lane:1,layer:0}]   // gravity first: already in, already fixed
+};
+// Service types. band: gravity = bottom layer only; pipe = bottom two; duct = middle; tray = top two.
+const TYPES={
+  CHW: {name:'Chilled water',  trade:'chw', owner:'ACMV',       w:1,band:'pipe',   shape:'pipe',weight:3},
+  FP:  {name:'Sprinkler main', trade:'fire',owner:'Fire',       w:1,band:'pipe',   shape:'pipe',weight:2},
+  CW:  {name:'Cold water',     trade:'ps',  owner:'Plumbing',   w:1,band:'pipe',   shape:'pipe',weight:2},
+  MG:  {name:'Medical gas',    trade:'mg',  owner:'Medical gas',w:1,band:'pipe',   shape:'pipe',weight:1},
+  SOIL:{name:'Soil drain',     trade:'ps',  owner:'Plumbing',   w:1,band:'gravity',shape:'pipe',weight:1,gravity:true},
+  SA:  {name:'Supply air duct',trade:'acmv',owner:'ACMV',       w:2,band:'duct',   shape:'duct',weight:2,duct:true},
+  EA:  {name:'Exhaust duct',   trade:'acmv',owner:'ACMV',       w:1,band:'duct',   shape:'duct',weight:2,duct:true},
+  PWR: {name:'Power tray',     trade:'elec',owner:'Electrical', w:2,band:'tray',   shape:'tray',weight:2},
+  ELV: {name:'ELV tray',       trade:'elv', owner:'ELV',        w:1,band:'tray',   shape:'tray',weight:3}
+};
+const CARDS={
+  drop:   {name:'Drop to cross',desc:'One run dips under the other where it turns. Not for ducts or gravity drains.',target:'cx'},
+  reroute:{name:'Reroute',      desc:'Send one run through the next corridor instead.',target:'run'},
+  defer:  {name:'Defer',        desc:'Park one crossing until the end of next week, with an owner.',target:'cx'},
+  height: {name:'+100 mm',      desc:'The architect agrees to a lower ceiling. One more layer, and you choose which band gets it.'}
+};
+
+// ---------- State ----------
+let S;
+const $=s=>document.querySelector(s);
+const W=r=>TYPES[r.type].w;
+const room=i=>CONFIG.rooms[i].name;
+const icon=(i,cls='ic')=>`<svg class="${cls}" aria-hidden="true"><use href="#ic-${CONFIG.rooms[i].icon}"/></svg>`;
+// Age-aware animation: re-rendering restarts CSS animations, so start each one "age" seconds in
+const ago=t=>`animation-delay:-${((performance.now()-t)/1000).toFixed(2)}s`;
+const fresh=(t,sec)=>t&&performance.now()-t<sec*1000;
+const byId=id=>S.runs.find(r=>r.id===id);
+const queue=()=>S.runs.filter(r=>!r.placed);
+const openCx=()=>S.list.filter(c=>{const st=S.cx[c.key];return st&&!st.area&&!st.resolved&&!st.defer});
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+function newGame(seed){
+  S={seed:seed??(Date.now()%1e9),t:0,week:1,weekT:0,L:CONFIG.layers,lanes:CONFIG.lanes,
+     runs:[],cx:{},list:[],areas:[],hand:{...CONFIG.hand},log:[],connected:0,decisions:0,
+     nextSpawn:CONFIG.firstSpawn,spawnEvery:CONFIG.spawnEvery,spawned:0,knockAt:null,heightGiven:0,
+     modal:null,over:null,armed:null,sel:null,hl:null,seen:{},counters:{},flash:null,offer:null,chances:CONFIG.chances};
+  S.bands=CONFIG.bands.map(b=>[...b]);S.L=S.bands.length;
+  // Three random streams: arrivals and meeting offers depend only on the seed, so a ranked round
+  // is the same game for everyone; the third covers things your own play changes (default placement, knock-ons).
+  S.rngSpawn=mulberry32(S.seed);S.rngWeek=mulberry32(S.seed^0x5bd1e995);S.rng=mulberry32(S.seed^0x9e3779b9);
+  S.used={drop:0,reroute:0,defer:0};S.ranked=false;S.submitted=false;S.round=null;
+  for(const p of CONFIG.preplaced){const r=makeRun(p.type,p.door);Object.assign(r,{lane:p.lane,layer:p.layer,placed:true,counted:true,fixed:!!TYPES[p.type].gravity})}
+  $("#fx").innerHTML=""; $("#go").classList.remove("show"); hideTip(); ui.logSeen=0; ui.logOpen=false; ui.boardOpen=false; syncCrossings(); showModal(firstModal()); render();
+}
+function makeRun(type,door){
+  const n=S.counters[type]=(S.counters[type]||0)+1;
+  const r={id:`${type}-${n}`,type,door,lane:null,layer:null,placed:false,fixed:false,locked:false,counted:false,born:performance.now()};
+  S.runs.push(r); return r;
+}
+
+// ---------- Rules ----------
+// Each layer carries an agreed set of bands (S.bands, bottom first). Gravity drains need the bottom layer:
+// they fall along their whole length, so nothing can sit under them.
+const BAND_NAME={pipe:'pipes',duct:'ducts',tray:'trays'};
+function band(type){
+  const b=TYPES[type].band;
+  if(b==='gravity')return S.bands[0].includes('pipe')?[0]:[];
+  const out=[];S.bands.forEach((set,i)=>{if(set.includes(b))out.push(i)});return out;
+}
+function bandNames(layer){
+  const n=S.bands[layer].map(b=>BAND_NAME[b]);
+  if(layer===0&&S.bands[0].includes('pipe'))n.push('drains');
+  return n.join(' · ');
+}
+const layerEmpty=layer=>!S.runs.some(r=>r.placed&&r.layer===layer);
+// Re-band an empty layer: cheap while nothing is built to the agreement, locked once something is
+function reband(layer){
+  if(S.over||S.modal)return;
+  if(!layerEmpty(layer)){toast(`L${layer+1} has services in it. Only an empty layer can change band.`,true);return}
+  const order=['pipe','duct','tray'],cur=S.bands[layer],next=cur.length>1?cur[0]:order[(order.indexOf(cur[0])+1)%3];
+  S.bands[layer]=[next];
+  toast(`L${layer+1} is now a ${BAND_NAME[next].slice(0,-1)} layer.`);
+  render();
+}
+function taken(lane,layer,except){
+  return S.runs.some(r=>r.placed&&r!==except&&r.layer===layer&&lane>=r.lane&&lane<r.lane+W(r));
+}
+function canPlace(r,lane,layer){
+  if(!band(r.type).includes(layer))return false;
+  if(lane<0||lane+W(r)>S.lanes)return false;
+  for(let i=lane;i<lane+W(r);i++)if(taken(i,layer,r))return false;
+  return true;
+}
+function validSlots(r){
+  const out=[];for(const layer of band(r.type))for(let lane=0;lane+W(r)<=S.lanes;lane++)if(canPlace(r,lane,layer))out.push({lane,layer});
+  return out;
+}
+// The junction rule, made discrete: in one layer, a run turns toward the rooms (lane 0 side) at its door.
+// It crosses every same-layer run nearer the rooms that keeps going past that door.
+function crossings(){
+  const out=[],P=S.runs.filter(r=>r.placed);
+  for(const r of P)for(const s of P){
+    if(r===s||r.layer!==s.layer)continue;
+    if(s.lane+W(s)-1<r.lane&&s.door>r.door)out.push({key:`${r.id}>${s.id}@${r.door}`,turn:r,thru:s});
+  }
+  return out;
+}
+function syncCrossings(){
+  const list=crossings(),keys=new Set(list.map(c=>c.key));
+  for(const c of list)if(!S.cx[c.key]){
+    S.cx[c.key]={remain:CONFIG.clashTime,defer:null,resolved:false,area:false};
+    if(!S.seen.cross){S.seen.cross=1;toast(`First crossing: ${c.turn.id} turns into ${room(c.turn.door)} across ${c.thru.id}. Swap lanes or layers to clear it.`,false,5000)}
+  }
+  for(const k in S.cx)if(!keys.has(k)&&!S.cx[k].area)delete S.cx[k];
+  S.list=list; return list;
+}
+
+// ---------- Actions ----------
+function place(r,lane,layer){
+  r.lane=lane;r.layer=layer;
+  if(!r.placed){r.placed=true;if(!r.counted){r.counted=true;S.connected++}}
+  if(TYPES[r.type].gravity&&!r.fixed){r.fixed=true;toast(`${r.id} is fixed now. A gravity drain needs its fall, so plan around it.`)}
+  S.sel=null; syncCrossings(); render();
+}
+function spawn(type,door){
+  if(!type)type=S.spawned<CONFIG.opening.length?CONFIG.opening[S.spawned]:pickType();
+  if(door==null)door=Math.floor(S.rngSpawn()*CONFIG.rooms.length);
+  S.spawned++; const r=makeRun(type,door);
+  const q=queue(); if(q.length>CONFIG.queueMax)autoPlace(q[0]);
+  render(); return r;
+}
+function pickType(){
+  const ks=Object.keys(TYPES),tot=ks.reduce((a,k)=>a+TYPES[k].weight,0);let x=S.rngSpawn()*tot;
+  for(const k of ks){x-=TYPES[k].weight;if(x<0)return k}
+  return ks[0];
+}
+function autoPlace(r){
+  const slots=validSlots(r);
+  if(!slots.length){gameOver('full',r);return}
+  const s=slots[Math.floor(S.rng()*slots.length)];
+  addLog('auto',`Nobody decided: a modeller placed ${r.id} by default.`);
+  toast(`Too many waiting. A modeller placed ${r.id} by default.`,true);
+  place(r,s.lane,s.layer);
+}
+function makeArea(c){
+  const st=S.cx[c.key]; st.area=true; c.turn.locked=c.thru.locked=true;
+  S.areas.push({key:c.key,door:c.turn.door,a:c.turn.id,b:c.thru.id});
+  addLog('area',`Clash Area at ${room(c.turn.door)}: ${c.turn.id} × ${c.thru.id}. It names a place, not a decision. Both runs are stuck.`);
+  toast(`Clash Area at ${room(c.turn.door)}: parked, not decided.`,true);
+  if(S.areas.length>=CONFIG.maxAreas)gameOver('clash');
+}
+function knockOn(){
+  const c=S.runs.filter(r=>r.placed&&!r.locked&&!TYPES[r.type].gravity);
+  if(!c.length)return;
+  const r=c[Math.floor(S.rng()*c.length)],n=CONFIG.rooms.length;let d;
+  do{d=Math.floor(S.rng()*n)}while(d===r.door);
+  const old=r.door; r.door=d; syncCrossings();
+  addLog('knock',`Design change: ${r.id} now serves ${room(d)}, not ${room(old)}. Nobody told you.`);
+  toast(`Knock-on: ${r.id} now goes to ${room(d)}. Nobody told you.`,true,4500);
+  S.flash={id:r.id,at:performance.now()}; render();
+}
+// The new layer joins the chosen band: pipes go on top of the pure-pipe layers, ducts under the first tray layer, trays on top
+function addLayer(b){
+  let at;
+  if(b==='pipe'){at=0;while(at<S.L&&S.bands[at].length===1&&S.bands[at][0]==='pipe')at++}
+  else if(b==='duct'){at=S.bands.findIndex(x=>x.includes('tray'));if(at<0)at=S.L}
+  else at=S.L;
+  for(const r of S.runs)if(r.placed&&r.layer>=at)r.layer++;
+  S.bands.splice(at,0,[b]);S.L=S.bands.length;S.heightGiven++;syncCrossings();
+  addLog('decision',`The architect lowers the ceiling 100 mm. The new layer goes to ${BAND_NAME[b]}. Owner: Architect, with you.`);
+}
+// What each band needs right now: waiting services and free single-lane slots
+function bandNeed(b){
+  const waiting=queue().filter(r=>{const tb=TYPES[r.type].band;return tb===b||(b==='pipe'&&tb==='gravity')}).length;
+  let free=0;S.bands.forEach((set,i)=>{if(set.includes(b))for(let l=0;l<S.lanes;l++)if(!taken(l,i))free++});
+  return{waiting,free};
+}
+
+// ---------- Cards ----------
+function arm(k){
+  if(S.over||S.modal)return;
+  if(!S.hand[k]){toast(`No ${CARDS[k].name} cards left.`);return}
+  S.armed=S.armed===k?null:k; S.sel=null; render();
+}
+function spend(k){S.hand[k]--;S.decisions++;S.used[k]++;S.armed=null}
+function applyCx(key){
+  const c=S.list.find(x=>x.key===key),st=S.cx[key];
+  if(!c||!st)return;
+  if(st.area){toast('Too late: that one is already a Clash Area.',true);return}
+  if(S.armed==='drop'){
+    if(st.resolved){toast('Already decided.');return}
+    const cand=[c.turn,c.thru].filter(r=>!TYPES[r.type].duct&&!TYPES[r.type].gravity).sort((a,b)=>W(a)-W(b));
+    if(!cand.length){toast("Neither run can drop: ducts and gravity drains can't dip.",true);return}
+    const d=cand[0],o=d===c.turn?c.thru:c.turn;
+    st.resolved=true;st.defer=null;st.dropped=d.id;spend('drop');fxDrop(c,d,o);
+    addLog('decision',`${d.id} drops under ${o.id} at ${room(c.turn.door)}. Owner: ${TYPES[d.type].owner}.`);
+    toast(`Decision: ${d.id} drops under ${o.id}. Owner: ${TYPES[d.type].owner}.`);
+  }else if(S.armed==='defer'){
+    if(st.resolved||st.defer){toast('Already decided or deferred.');return}
+    st.defer=S.week+1;spend('defer');
+    addLog('defer',`Deferred: ${c.turn.id} × ${c.thru.id} at ${room(c.turn.door)}, until the end of week ${S.week+1}. Owner: ${TYPES[c.turn.type].owner}.`);
+    toast(`Deferred until the end of week ${S.week+1}. Owner: ${TYPES[c.turn.type].owner}.`);
+  }
+  render();
+}
+function applyRun(r){
+  if(!r||S.armed!=='reroute')return;
+  if(r.locked){toast(`${r.id} is stuck in a Clash Area. It's too late to reroute it.`,true);return}
+  if(TYPES[r.type].gravity){toast("Gravity drains can't be rerouted: they need their fall.",true);return}
+  S.runs=S.runs.filter(x=>x!==r); if(!r.counted){r.counted=true;S.connected++}
+  spend('reroute'); syncCrossings();
+  addLog('decision',`${r.id} rerouted through the next corridor. Owner: ${TYPES[r.type].owner}.`);
+  toast(`Decision: ${r.id} rerouted. Owner: ${TYPES[r.type].owner}.`); render();
+}
+function explainCx(key){
+  const c=S.list.find(x=>x.key===key),st=S.cx[key];if(!c)return;
+  if(st.area)return toast(`Clash Area: ${c.turn.id} × ${c.thru.id}. It was parked, never decided.`);
+  toast(`${c.turn.id} turns into ${room(c.turn.door)} and ${c.thru.id} is in its way: same layer, nearer the rooms, and it keeps going past that door.`,false,5000);
+}
+
+// ---------- Clock ----------
+function tick(dt){
+  if(S.over||S.modal)return;
+  S.t+=dt;S.weekT+=dt;
+  S.nextSpawn-=dt; if(S.nextSpawn<=0){S.nextSpawn+=S.spawnEvery;spawn();if(S.over)return}
+  if(S.knockAt!=null&&S.weekT>=S.knockAt){S.knockAt=null;knockOn()}
+  for(const c of S.list){
+    const st=S.cx[c.key]; if(!st||st.resolved||st.area||st.defer)continue;
+    st.remain-=dt; if(st.remain<=0){makeArea(c);if(S.over)return}
+  }
+  if(S.weekT>=CONFIG.weekLen)endWeek();
+}
+function endWeek(){
+  const done=S.week;S.weekT=0;
+  for(const c of S.list){const st=S.cx[c.key];if(st&&st.defer&&st.defer<=done){st.defer=null;addLog('due',`Due now: ${c.turn.id} × ${c.thru.id} at ${room(c.turn.door)}. The deferral has run out.`)}}
+  const pool=['drop','drop','drop','reroute','reroute','defer','defer'];
+  const a=pool[Math.floor(S.rngWeek()*pool.length)];let b;do{b=pool[Math.floor(S.rngWeek()*pool.length)]}while(b===a);
+  S.offer=[a,b];
+  // Scheduled height first (you choose the band), then the usual card pick
+  if(CONFIG.heightWeeks.includes(done+1)&&S.L<CONFIG.maxLayers){S.pendingHeight=true;showModal('height')}else showModal('week');
+}
+function takeOffer(k){
+  if(k==='height'){showModal('height');return}
+  S.hand[k]++;S.gained={k,at:performance.now()};nextWeek();
+}
+function chooseHeight(b){addLayer(b);if(S.pendingHeight){S.pendingHeight=false;showModal('week')}else nextWeek()}
+function nextWeek(){
+  S.week++; S.spawnEvery=Math.max(CONFIG.minSpawn,S.spawnEvery*CONFIG.spawnSpeedup);
+  S.knockAt=S.week>=CONFIG.knockOnFrom?CONFIG.weekLen*(0.3+0.4*S.rngWeek()):null;
+  hideModal(); render();
+}
+function gameOver(reason,r){
+  S.over={reason,id:r?r.id:null,type:r?r.type:null};
+  let best=null;try{best=JSON.parse(localStorage.getItem('minimep.segment.best')||'null')}catch(e){}
+  S.over.prevBest=best;
+  if(!best||S.connected>best.connected){try{localStorage.setItem('minimep.segment.best',JSON.stringify({connected:S.connected,weeks:S.week}))}catch(e){}}
+  if(S.ranked&&!S.submitted){S.submitted=true;submitRun()}
+  else if(S.ranked&&S.submitted)extendRun();
+  render(); showGameOver(()=>showModal('over'));
+}
+
+// GAME OVER splash, then the stall dialog. Click skips; a restart during the splash cancels it.
+function showGameOver(done){
+  const ms=CONFIG.gameOverMs,game=S;
+  if(!ms){done();return}
+  const el=$('#go');let fin=false;
+  const end=()=>{if(fin)return;fin=true;el.classList.remove('show');if(S===game&&S.over)done()};
+  el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+  el.onclick=end;setTimeout(end,ms);
+}
+
+// ---------- Log, toast, modal ----------
+function addLog(kind,text){S.log.unshift({kind,text,week:S.week})}
+function toast(msg,warn,ms){const t=$('#toast');t.textContent=msg;t.className='toast show'+(warn?' warn':'');clearTimeout(toast.h);toast.h=setTimeout(()=>t.className='toast',ms||3200)}
+// The rules, shown on the start screen and in the live-game lobby
+function howTo(){
+  return `<p>Services keep arriving at the riser. Fit them into the corridor ceiling void, and keep the void working.</p>
+    <ol>
+      <li><b>Drag</b> a service from the riser into the section. The highlighted slots are its <b>height band</b>: trays at the top, ducts in the middle, pipes at the bottom.</li>
+      <li>Each run turns into its room at the door. Two runs in the <b>same layer cross</b> when the one nearer the rooms keeps going past the other's door. A red ring marks it. Hover the ring to see why.</li>
+      <li>A ring that runs out hardens into a <b>Clash Area</b>. Three of those and the project stalls.</li>
+    </ol>
+    <p>If moving runs can't fix a crossing, play a card. You start with one of each:</p>
+    <div class="hand0">${['drop','reroute','defer'].map((k,i)=>cardRow(k,i+1)).join('')}</div>
+    <div class="keys">Keys: 1 / 2 / 3 play a card · Esc cancels · Space pauses</div>`;
+}
+function cardRow(k,key){
+  return `<div class="cardrow"><span class="ci"><svg><use href="#ic-c-${k}"/></svg></span><b>${key?key+'. ':''}${CARDS[k].name}</b><span>${CARDS[k].desc}</span></div>`;
+}
+function showModal(kind){
+  S.modal=kind; const m=$('#modal'); let h='';
+  if(kind==='intro'){
+    h=`<h2>Mini MEP · Segment Routing</h2>
+    ${NET.joined?`<p class="pinline">Game PIN <b>${NET.pin}</b> · playing as <b>${esc(NET.nick)}</b>. Everyone in this game gets the same arrivals.</p>`:''}
+    ${howTo()}
+    ${NET.expected&&!NET.joined?'<div class="bar" style="margin-bottom:14px"><button data-act="leave">Join a game with a PIN</button></div>':''}
+    <button class="primary" data-act="start">${NET.joined?'Start ranked game':(NET.expected?'Start practice':'Start')}</button>`;
+  }else if(kind==='join'){
+    h=`<h2>Mini MEP</h2>
+    <p>Enter the game PIN shown on the host's screen.</p>
+    <div class="nickrow"><label for="pin">Game PIN</label><input id="pin" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="000000" value="${esc(NET.pin||PARAMS.get('pin')||'')}"></div>
+    <div class="bar"><button class="primary" data-act="pin" ${NET.ready?'':'disabled'}>${NET.ready?'Enter':'Connecting…'}</button><button data-act="practice">Practice without a PIN</button></div>`;
+  }else if(kind==='nick'){
+    const live=NET.session&&NET.session.mode==='live';
+    h=`<h2>Game PIN <span class="mono">${NET.pin}</span></h2>
+    <p>${live?'Live game: everyone starts together when the host presses Start.':'Open round: play whenever you like. Your best score counts.'}</p>
+    <div class="nickrow"><label for="nick">Nickname</label>
+      <input id="nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="e.g. DuctTape" value="${esc(NET.nick)}">
+      <span>Others see it on the leaderboard.</span></div>
+    <div class="bar"><button class="primary" data-act="join">OK, go!</button><button data-act="leave">Different PIN</button></div>`;
+  }else if(kind==='lobby'){
+    const chips=lobbyChips();ui.sig['#lobby']=chips;
+    h=`<h2>You're in, ${esc(NET.nick)}!</h2>
+    <p>Look for your nickname on the host's screen. The game starts when the host presses Start.</p>
+    <div class="lobby" id="lobby">${chips}</div>
+    <details open><summary>How to play while you wait</summary>${howTo()}</details>
+    <div class="bar"><button data-act="leave">Leave this game</button></div>`;
+  }else if(kind==='closed'){
+    h=`<h2>Game <span class="mono">${NET.pin}</span> has ended</h2>
+    <p>Thanks for playing. The final leaderboard is behind the trophy, top right.</p>
+    <div class="bar"><button class="primary" data-act="leave">Join another game</button><button data-act="practice">Practice</button></div>`;
+  }else if(kind==='week'){
+    const w=S.week;
+    h=`<h2>End of week ${w} · coordination meeting</h2>
+    <p>${S.connected} services fitted so far and ${S.decisions} decisions named. Pick one thing to take away from the meeting.</p>
+    <div class="offers">${S.offer.map(k=>`<button data-act="offer" data-k="${k}">${cardRow(k)}</button>`).join('')}</div>`;
+  }else if(kind==='height'){
+    const opt=b=>{const n=bandNeed(b);return `<button data-act="hband" data-b="${b}"><div class="cardrow"><span class="ci"><svg><use href="#ic-c-height"/></svg></span><b>${BAND_NAME[b][0].toUpperCase()+BAND_NAME[b].slice(1)}</b><span>${n.waiting} waiting · ${n.free} free slot${n.free===1?'':'s'}</span></div></button>`};
+    const last=S.week+1===Math.max(...CONFIG.heightWeeks);
+    h=`<h2>Week ${S.week+1} · +100 mm · who gets it?</h2>
+    <p>The architect lowers the ceiling 100 mm. That's one more layer. Agree which band it goes to.${last?' <b>This is the last height you will get.</b>':''}</p>
+    <div class="offers three">${['pipe','duct','tray'].map(opt).join('')}</div>`;
+  }else if(kind==='paused'){
+    h=`<h2>Paused</h2><p>Press Space or Resume to carry on.</p><button class="primary" data-act="resume">Resume</button>`;
+  }else if(kind==='over'){
+    const o=S.over,best=o.prevBest;
+    const why=o.reason==='full'
+      ?`<p><b>The corridor ran out of height.</b> No slot is left for ${o.id} (${TYPES[o.type].name}). This isn't a clash you can fix by moving runs. It's a space-planning decision for the design team: reroute some services, give the corridor more height, or carry less in it.</p>`
+      :`<p><b>Three Clash Areas.</b> Each one named a place, not a decision, and the corridor stopped moving.</p>`;
+    h=`<h2>Project stalled</h2>${why}
+    <div class="stats"><div><b>${S.week}</b>weeks</div><div><b>${S.connected}</b>services fitted</div><div><b>${S.decisions}</b>decisions</div><div><b>${S.areas.length}</b>Clash Areas</div></div>
+    ${S.ranked?`<p id="rankline">${rankLine()}</p>
+      <div class="nickrow"><label for="cmt">One-line feedback (optional)</label><input id="cmt" maxlength="200" autocomplete="off" placeholder="What felt good or unfair?"><button data-act="cmt">Send</button></div>`
+      :`<p>${best?`Previous best: ${best.connected} services fitted.`:''}${!best||S.connected>best.connected?' New best.':''}</p>`}
+    ${S.chances>0
+      ?`<p><b>One more chance.</b> ${o.reason==='full'?`Escalate it: ${o.id} is rerouted through another corridor and the game goes on.`:'Escalate it: the design team settles the latest Clash Area late, and the game goes on.'} You get this once per game.</p>
+        ${S.ranked?'<p>Play after this is for fun: your ranked score is already frozen.</p>':''}
+        <div class="bar"><button class="primary" data-act="chance">One more chance</button><button data-act="again">Start over</button></div>`
+      :`<button class="primary" data-act="again">Play again</button>`}`;
+  }
+  m.innerHTML=h; $('#ov').classList.add('show');
+  const f=m.querySelector('#pin')||m.querySelector('#nick')||m.querySelector('button');if(f)f.focus();
+}
+function hideModal(){S.modal=null;$('#ov').classList.remove('show')}
+$('#modal').addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const a=b.dataset.act;
+  if(a==='start'){startGame();return}
+  if(a==='pin'){submitPin();return}
+  if(a==='join'){joinWithNick();return}
+  if(a==='practice'){NET.practice=true;newGame();return}
+  if(a==='leave'){leaveGame();return}
+  if(a==='resume')hideModal();
+  else if(a==='cmt'){sendComment();return}
+  else if(a==='offer')takeOffer(b.dataset.k);
+  else if(a==='hband')chooseHeight(b.dataset.b);
+  else if(a==='again'){if(NET.joined){if(NET.session&&NET.session.status!=='closed'){newGame(NET.session.seed);startRanked()}else showModal('closed')}else{newGame();hideModal()}}
+  else if(a==='chance')oneMoreChance();
+  render();
+});
+// One rescue per game: escalate the thing that ended it, then carry on
+function oneMoreChance(){
+  if(!S.over||S.chances<=0)return;
+  const o=S.over;S.chances--;S.over=null;
+  if(o.reason==='full'){
+    const r=byId(o.id);if(r)S.runs=S.runs.filter(x=>x!==r);
+    addLog('decision',`Escalated: ${o.id} rerouted through another corridor. Owner: design team.`);
+    toast(`One more chance: ${o.id} rerouted. Watch the height.`);
+  }else if(S.areas.length){
+    const a=S.areas.pop(),st=S.cx[a.key];
+    if(st){st.area=false;st.resolved=true;st.late=true}
+    const still=new Set(S.areas.flatMap(x=>[x.a,x.b]));
+    for(const id of[a.a,a.b]){const r=byId(id);if(r&&!still.has(id))r.locked=false}
+    addLog('decision',`Escalated late: the design team settles ${a.a} × ${a.b} at ${room(a.door)}.`);
+    toast(`One more chance: ${a.a} × ${a.b} settled late. ${S.areas.length} Clash Areas left.`);
+  }
+  hideModal();syncCrossings();render();
+}
+
+// ---------- Render: section ----------
+const CELL=60,SX=86,SY=124;
+function shapeSVG(r,x,y,extra=''){
+  // x,y = top-left of the run's cells; width spans its lanes
+  const t=TYPES[r.type],w=W(r)*CELL,fill=`var(--t-${t.trade})`;let s;
+  if(t.shape==='duct')s=`<rect class="shape" x="${x+5}" y="${y+10}" width="${w-10}" height="${CELL-20}" rx="3" fill="${fill}"/>`;
+  else if(t.shape==='tray')s=`<rect class="shape" x="${x+5}" y="${y+CELL/2-8}" width="${w-10}" height="16" rx="2" fill="${fill}"/>`;
+  else s=`<circle class="shape" cx="${x+w/2}" cy="${y+CELL/2}" r="13" fill="${fill}"/>`;
+  return s+`<text class="rid" x="${x+w/2}" y="${y+CELL/2+(t.shape==='pipe'?24:4)}" text-anchor="middle">${r.id}${r.fixed?' ⏚':''}</text>`+extra;
+}
+function renderSec(){
+  const svg=$('#sec'),N=S.lanes,L=S.L,gw=N*CELL,gh=L*CELL,Wd=SX+gw+96,Ht=SY+gh+50;
+  svg.setAttribute('viewBox',`0 0 ${Wd} ${Ht}`);
+  const active=drag?byId(drag.id):S.sel?byId(S.sel):null;
+  const cover=new Set();
+  if(active)for(const s of validSlots(active))for(let i=s.lane;i<s.lane+W(active);i++)cover.add(i+','+s.layer);
+  let h=`<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="var(--beam)"/><line x1="0" y1="0" x2="0" y2="8" stroke="var(--panel)" stroke-width="2"/></pattern></defs>`;
+  // Riser inbox
+  const q=queue();
+  h+=`<text class="lbl" x="8" y="16">RISER · WAITING ${q.length}/${CONFIG.queueMax}</text>`;
+  for(let i=0;i<CONFIG.queueMax;i++)h+=`<rect class="slot" x="${8+i*96}" y="26" width="88" height="62" rx="8"/>`;
+  q.forEach((r,i)=>{
+    const x=8+i*96,y=26,t=TYPES[r.type],nofit=!validSlots(r).length;
+    const sw=t.shape==='pipe'?`<circle cx="20" cy="20" r="9" fill="var(--t-${t.trade})"/>`:t.shape==='duct'?`<rect x="8" y="12" width="${W(r)*12}" height="16" rx="2" fill="var(--t-${t.trade})"/>`:`<rect x="8" y="16" width="${W(r)*12}" height="8" fill="var(--t-${t.trade})"/>`;
+    // New arrivals pop in and pulse, like a new house in Mini Motorways
+    const pulse=fresh(r.born,3)?`<rect class="pulse" width="88" height="62" rx="8" style="${ago(r.born)}"/>`:'';
+    h+=`<g transform="translate(${x},${y})">${pulse}<g class="tok${fresh(r.born,.6)?' pop':''}${nofit?' nofit':''}${S.sel===r.id?' sel':''}${drag&&drag.id===r.id?' dragging':''}" data-id="${r.id}" style="${fresh(r.born,.6)?ago(r.born):''}">
+      <rect class="tokbg" width="88" height="62" rx="8"/>${sw}
+      <text class="rid" x="${t.shape==='pipe'?36:W(r)*12+14}" y="24">${r.id}</text>
+      <use href="#ic-${CONFIG.rooms[r.door].icon}" class="ric hot" x="7" y="33" width="14" height="14"/>
+      <text class="lbl" x="24" y="44">${room(r.door)}</text>
+      <text class="lbl" x="8" y="57" style="font-size:9.5px">${nofit?'no slot fits':t.name}</text></g></g>`;
+  });
+  if(!q.length)h+=`<text class="lbl" x="${8+CONFIG.queueMax*96}" y="60">Next one is on its way.</text>`;
+  // Beam soffit
+  h+=`<rect x="${SX-10}" y="${SY-20}" width="${gw+20}" height="16" fill="url(#hatch)"/><text class="lbl" x="${SX+gw+16}" y="${SY-8}">beam soffit</text>`;
+  // Cells
+  for(let layer=0;layer<L;layer++){
+    const y=SY+(L-1-layer)*CELL;
+    for(let lane=0;lane<N;lane++)h+=`<rect class="cell${cover.has(lane+','+layer)?' valid':''}" x="${SX+lane*CELL}" y="${y}" width="${CELL}" height="${CELL}"/>`;
+    h+=`<text class="lbl" x="${SX-10}" y="${y+CELL/2+4}" text-anchor="end">L${layer+1}</text>`;
+    // Band label: click an empty layer's label to re-band it
+    const em=layerEmpty(layer);
+    h+=`<g class="${em?'bandlbl':''}" data-band="${layer}"><rect class="hit" x="${SX+gw+8}" y="${y+4}" width="92" height="${CELL-8}"/>
+      <text class="lbl" x="${SX+gw+16}" y="${y+CELL/2+(em?-2:4)}">${bandNames(layer)}</text>${em?`<text class="lbl" x="${SX+gw+16}" y="${y+CELL/2+12}" style="font-size:9.5px;fill:var(--accent)">↻ change band</text>`:''}</g>`;
+  }
+  // Placed runs. Runs caught in an open crossing get a red outline, so you can fix them here.
+  const crossing=new Set(openCx().flatMap(c=>[c.turn.id,c.thru.id]));
+  for(const r of S.runs.filter(r=>r.placed).sort((a,b)=>a.layer-b.layer)){
+    const x=SX+r.lane*CELL,y=SY+(L-1-r.layer)*CELL;
+    const fl=S.flash&&S.flash.id===r.id&&fresh(S.flash.at,3.6);
+    const cls=['run',r.fixed?'fixed':'',r.locked?'locked':'',S.sel===r.id?'sel':'',drag&&drag.id===r.id?'dragging':'',fl?'flash':'',crossing.has(r.id)?'cxing':''].join(' ');
+    h+=`<g class="${cls}" data-id="${r.id}" style="${fl?ago(S.flash.at):''}">${shapeSVG(r,x,y)}</g>`;
+  }
+  // Service floor
+  h+=`<line class="floorline" x1="${SX-10}" x2="${SX+gw+10}" y1="${SY+gh}" y2="${SY+gh}"/><text class="lbl" x="${SX+gw+16}" y="${SY+gh+4}">service floor</text>`;
+  h+=`<text class="lbl" x="${SX}" y="${SY+gh+22}">◀ room side</text><text class="lbl" x="${SX+gw}" y="${SY+gh+22}" text-anchor="end">open side ▶</text>`;
+  $('#secMain').innerHTML=h;
+}
+let drag=null;
+function svgPt(svg,e){const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse())}
+function cellAt(p,r){
+  const layer=S.L-1-Math.floor((p.y-SY)/CELL);
+  if(layer<0||layer>=S.L||p.x<SX-CELL||p.x>SX+S.lanes*CELL+CELL)return null;
+  let lane=Math.round((p.x-SX)/CELL-W(r)/2);
+  lane=Math.max(0,Math.min(S.lanes-W(r),lane));
+  return{lane,layer};
+}
+function drawGhost(r,p){$('#ghost').innerHTML=`<g opacity=".75">${shapeSVG(r,p.x-W(r)*CELL/2,p.y-CELL/2)}</g>`}
+function placeMsg(r,c){return band(r.type).includes(c.layer)?'That slot is taken.':`${TYPES[r.type].name} has to sit in its band. Use the highlighted slots.`}
+const sec=$('#sec');
+sec.addEventListener('pointerdown',e=>{
+  if(S.over||S.modal)return;
+  const bl=e.target.closest('[data-band]');if(bl&&!S.armed&&!S.sel){reband(+bl.dataset.band);return}
+  const el=e.target.closest('[data-id]'),p=svgPt(sec,e);
+  if(S.armed){if(S.armed==='reroute'){if(el)applyRun(byId(el.dataset.id))}else toast('Pick a crossing: a ring in the plan, or a row in the list.');return}
+  if(el){
+    const r=byId(el.dataset.id);if(!r)return;
+    if(r.locked){toast(`${r.id} is stuck in a Clash Area.`,true);return}
+    if(r.fixed){toast(`${r.id} is a gravity drain. It's fixed once placed because it needs its fall.`,true);return}
+    drag={id:r.id,x0:p.x,y0:p.y,moved:false}; sec.setPointerCapture(e.pointerId); render(); return;
+  }
+  if(S.sel){const r=byId(S.sel),c=r&&cellAt(p,r);if(r&&c&&canPlace(r,c.lane,c.layer))place(r,c.lane,c.layer);else{if(r&&c)toast(placeMsg(r,c));S.sel=null;render()}}
+});
+sec.addEventListener('pointermove',e=>{
+  if(!drag)return;const p=svgPt(sec,e);
+  if(Math.hypot(p.x-drag.x0,p.y-drag.y0)>5)drag.moved=true;
+  if(drag.moved)drawGhost(byId(drag.id),p);
+});
+sec.addEventListener('pointerup',e=>{
+  if(!drag)return;const p=svgPt(sec,e),r=byId(drag.id),moved=drag.moved;drag=null;$('#ghost').innerHTML='';
+  if(!r){render();return}
+  if(moved){
+    const c=cellAt(p,r);
+    if(c&&canPlace(r,c.lane,c.layer)){if(!(r.placed&&r.lane===c.lane&&r.layer===c.layer))place(r,c.lane,c.layer);else render()}
+    else{if(c&&!(r.placed&&r.lane===c.lane&&r.layer===c.layer))toast(placeMsg(r,c));render()}
+  }else{S.sel=S.sel===r.id?null:r.id;render()}
+});
+sec.addEventListener('pointercancel',()=>{drag=null;$('#ghost').innerHTML='';render()});
+
+// ---------- Render: plan ----------
+// The plan stretches to fill its panel: the viewBox width is fixed at 1000, its height follows the panel,
+// and the rooms and lanes grow into the space (keeping the dock area at the bottom clear).
+const PX0=96,PX1=990;
+let WALL=110,LANE_H=40,ROOM_Y=48,RH=80,PK=1;
+const doorX=i=>PX0+(i+0.5)*(PX1-PX0)/CONFIG.rooms.length;
+const lDx=k=>(k-(S.L-1)/2)*6*PK, lDy=k=>-(k-(S.L-1)/2)*3*PK;
+const laneY=r=>WALL+(r.lane+W(r)/2)*LANE_H+lDy(r.layer);
+function strokeW(r){const t=TYPES[r.type];return PK*(t.shape==='duct'?(W(r)===2?20:11):t.shape==='tray'?(W(r)===2?14:8):5)}
+function layoutPlan(){
+  const svg=$('#plan'),w=svg.clientWidth||1000,h=svg.clientHeight||560;
+  const VH=Math.max(380,Math.round(1000*h/w));
+  RH=Math.min(110,Math.max(64,VH*0.16));
+  LANE_H=Math.min(56,Math.max(28,(VH-RH-250)/S.lanes));
+  PK=Math.min(1.5,LANE_H/30);
+  ROOM_Y=Math.max(70,(VH-(RH+S.lanes*LANE_H+30)-140)/2+40);
+  WALL=ROOM_Y+RH;
+  return VH;
+}
+function renderPlan(){
+  const svg=$('#plan'),Ht=layoutPlan(),bot=WALL+S.lanes*LANE_H;
+  svg.setAttribute('viewBox',`0 0 1000 ${Ht}`);
+  let h='';const n=CONFIG.rooms.length,rw=(PX1-PX0)/n;
+  for(let i=0;i<n;i++){const x=PX0+i*rw;h+=`<g data-room="${i}"><rect class="room" x="${x+2}" y="${ROOM_Y}" width="${rw-4}" height="${RH-6}"/>
+    <use href="#ic-${CONFIG.rooms[i].icon}" class="ric" x="${x+rw/2-13}" y="${ROOM_Y+RH/2-26}" width="26" height="26"/><text class="lbl" x="${x+rw/2}" y="${ROOM_Y+RH/2+16}" text-anchor="middle">${room(i)}</text></g>`}
+  // A new arrival pulses at the door it needs to reach
+  for(const r of queue())if(fresh(r.born,3))h+=`<circle class="doorpulse" cx="${doorX(r.door)}" cy="${WALL}" r="12" style="${ago(r.born)}"/>`;
+  // Corridor walls with door gaps
+  let wx=PX0;for(let i=0;i<n;i++){const d=doorX(i);h+=`<line class="wall" x1="${wx}" x2="${d-16}" y1="${WALL}" y2="${WALL}"/>`;wx=d+16}
+  h+=`<line class="wall" x1="${wx}" x2="${PX1}" y1="${WALL}" y2="${WALL}"/><line class="wall" x1="${PX0}" x2="${PX1}" y1="${bot}" y2="${bot}"/>`;
+  h+=`<rect x="10" y="${WALL}" width="${PX0-18}" height="${bot-WALL}" rx="6" fill="var(--riser)" stroke="var(--line)"/><text class="lbl" x="${(PX0-8)/2+5}" y="${(WALL+bot)/2+4}" text-anchor="middle">RISER</text>`;
+  h+=`<text class="lbl" x="${PX0}" y="${bot+22}">open side (no rooms)</text>`;
+  // Runs, lowest layer first, so higher layers read as passing over
+  for(const r of S.runs.filter(r=>r.placed).sort((a,b)=>a.layer-b.layer)){
+    const y=laneY(r),x=doorX(r.door)+lDx(r.layer),sw=strokeW(r),t=TYPES[r.type];
+    const d=`M${PX0-12},${y} H${x} V${WALL-18}`;
+    const fl=S.flash&&S.flash.id===r.id&&fresh(S.flash.at,3.6);
+    const cls=['run',r.locked?'locked':'',fl?'flash':''].join(' ');
+    h+=`<g class="${cls}" data-id="${r.id}" style="${fl?ago(S.flash.at):''}"><path d="${d}" fill="none" stroke="var(--corr)" stroke-width="${sw+5}" stroke-linejoin="round"/>
+      <path class="pline" d="${d}" fill="none" stroke="var(--t-${t.trade})" stroke-width="${sw}" stroke-linejoin="round"/>
+      <text class="rid" x="${PX0+8+r.layer*4}" y="${y-sw/2-3}">${r.id}</text></g>`;
+  }
+  // Crossing markers
+  for(const c of S.list){
+    const st=S.cx[c.key];if(!st)continue;
+    const x=doorX(c.turn.door)+lDx(c.turn.layer),y=laneY(c.thru),ids=`${c.turn.id},${c.thru.id}`;
+    if(st.area)h+=`<g class="mk area" data-cx="${c.key}" data-ids="${ids}"><circle class="ring" cx="${x}" cy="${y}" r="26"/><text x="${x}" y="${y-5}">CLASH</text><text x="${x}" y="${y+7}">AREA</text></g>`;
+    else if(st.resolved){
+      // Drafting convention: the run that drops is dashed (hidden) where it passes under the other
+      if(st.dropped){
+        const dr=byId(st.dropped),ov=dr===c.turn?c.thru:c.turn,G=18;
+        const seg=(r,vert)=>vert?`M${x},${y-G} V${y+G}`:`M${x-G},${y} H${x+G}`;
+        const ovVert=ov===c.turn;
+        h+=`<g data-id="${ov.id}" class="run"><path d="${seg(ov,ovVert)}" stroke="var(--corr)" stroke-width="${strokeW(ov)+8}"/><path class="pline" d="${seg(ov,ovVert)}" stroke="var(--t-${TYPES[ov.type].trade})" stroke-width="${strokeW(ov)}"/></g>
+          <path class="hidden" d="${seg(dr,!ovVert)}" stroke="var(--t-${TYPES[dr.type].trade})" stroke-width="${Math.min(4,strokeW(dr))}" pointer-events="none"/>`;
+      }
+      h+=`<g class="mk resolved" data-cx="${c.key}" data-ids="${ids}"><circle class="ring" cx="${x+16}" cy="${y-16}" r="8"/><text x="${x+16}" y="${y-16}">${st.dropped?'↓':'✓'}</text></g>`;
+    }
+    else if(st.defer)h+=`<g class="mk deferred" data-cx="${c.key}" data-ids="${ids}"><circle class="ring" cx="${x}" cy="${y}" r="13"/><text x="${x}" y="${y}">W${st.defer}</text></g>`;
+    else{
+      const R=14*Math.min(PK,1.3),C=2*Math.PI*R,f=Math.max(0,st.remain/CONFIG.clashTime),urg=st.remain<6;
+      h+=`<g class="mk active${urg?' urgent':''}" data-cx="${c.key}" data-ids="${ids}" style="${urg?`animation-delay:-${(performance.now()%800)/1000}s`:''}"><circle class="bg" cx="${x}" cy="${y}" r="${R}"/><circle class="ring" cx="${x}" cy="${y}" r="${R}"/>
+        <circle class="arc" cx="${x}" cy="${y}" r="${R}" stroke-dasharray="${f*C} ${C}" transform="rotate(-90 ${x} ${y})"/><text x="${x}" y="${y}">${Math.ceil(st.remain)}</text></g>`;
+    }
+  }
+  $('#planMain').innerHTML=h;
+  if(tipKey)showTip(tipKey);
+}
+const plan=$('#plan');
+// Hover tooltip on a crossing marker: why these two runs cross
+let tipKey=null,tipXY=null;
+function whyText(key){
+  const c=S.list.find(x=>x.key===key),st=S.cx[key];if(!c||!st)return null;
+  const A=`<b>${c.turn.id}</b>`,B=`<b>${c.thru.id}</b>`,R=room(c.turn.door);
+  if(st.area)return `Clash Area at ${R}: ${A} × ${B}. It was parked and never decided, so both runs are stuck.`;
+  if(st.resolved)return st.dropped?`Decided: <b>${st.dropped}</b> drops under the other run at ${R}.`:`Settled late by the design team at ${R}.`;
+  const why=`${A} turns into ${R} here. ${B} is in the same layer (L${c.turn.layer+1}), nearer the rooms, and carries on to ${room(c.thru.door)}, so ${A} has to cut across it.`;
+  if(st.defer)return `${why}<br>Deferred until the end of week ${st.defer}.`;
+  return `${why}<br>Fix: move one of them to another layer or lane, or play a card. <b>${Math.ceil(st.remain)} s</b> until it hardens into a Clash Area.`;
+}
+function showTip(key){
+  const t=$('#hov'),txt=whyText(key);
+  if(!txt||!tipXY){hideTip();return}
+  t.innerHTML=txt;t.style.display='block';
+  const box=$('#planCard').getBoundingClientRect(),w=t.offsetWidth;
+  t.style.left=Math.max(4,Math.min(box.width-w-4,tipXY.x-box.left+14))+'px';
+  t.style.top=(tipXY.y-box.top+16)+'px';
+}
+function hideTip(){tipKey=null;$('#hov').style.display='none'}
+plan.addEventListener('pointermove',e=>{
+  const m=e.target.closest('[data-cx]');
+  if(m){tipKey=m.dataset.cx;tipXY={x:e.clientX,y:e.clientY};showTip(tipKey)}else hideTip();
+});
+plan.addEventListener('pointerleave',hideTip);
+// Drop to cross, shown in a short side-view callout next to the crossing
+function fxDrop(c,d,o){
+  const x=doorX(c.turn.door)+lDx(c.turn.layer),y=laneY(c.thru);
+  const bw=170,bh=86,bx=Math.min(1000-bw-4,x+22),by=y-bh-10>=2?y-bh-10:y+22,cx=bx+bw/2,cy=by+38;
+  const to=TYPES[o.type],td=TYPES[d.type];
+  const over=to.shape==='pipe'?`<circle cx="${cx}" cy="${cy}" r="9" fill="var(--t-${to.trade})"/>`:`<rect x="${cx-14}" y="${cy-(to.shape==='duct'?12:6)}" width="28" height="${to.shape==='duct'?24:12}" fill="var(--t-${to.trade})"/>`;
+  const flat=`M${bx+12},${cy} L${cx-34},${cy} L${cx-16},${cy} L${cx+16},${cy} L${cx+34},${cy} L${bx+bw-12},${cy}`;
+  const dip=`M${bx+12},${cy} L${cx-34},${cy} L${cx-16},${cy+24} L${cx+16},${cy+24} L${cx+34},${cy} L${bx+bw-12},${cy}`;
+  const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+  const css=getComputedStyle(document.documentElement),red=css.getPropertyValue('--danger').trim(),green=css.getPropertyValue('--ok').trim();
+  g.innerHTML=`<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.85;1" dur="3.2s" fill="freeze"/>
+    <rect class="fxbox" x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="6"/>
+    <text class="lbl" x="${bx+8}" y="${by+13}" style="font-size:9.5px">SIDE VIEW</text>
+    <circle cx="${cx}" cy="${cy}" r="18" fill="none" stroke="var(--danger)" stroke-width="2">
+      <animate attributeName="stroke" values="${red};${red};${green}" keyTimes="0;.5;1" dur="1.2s" fill="freeze"/></circle>
+    <path d="${flat}" fill="none" stroke="var(--t-${td.trade})" stroke-width="5" stroke-linejoin="round">
+      <animate attributeName="d" values="${flat};${flat};${dip}" keyTimes="0;.4;1" dur="1.1s" fill="freeze" calcMode="spline" keySplines="0 0 1 1;.3 0 .2 1"/></path>
+    ${over}
+    <text class="rid" x="${cx}" y="${by+bh-7}" text-anchor="middle">${d.id} drops under ${o.id}</text>`;
+  g.querySelectorAll('animate').forEach(a=>a.setAttribute('begin','indefinite'));
+  $('#fx').appendChild(g);
+  g.querySelectorAll('animate').forEach(a=>a.beginElement());
+  setTimeout(()=>g.remove(),3300);
+}
+plan.addEventListener('pointerdown',e=>{
+  if(S.over||S.modal)return;
+  const m=e.target.closest('[data-cx]'),el=e.target.closest('[data-id]');
+  if(m){if(S.armed==='drop'||S.armed==='defer')applyCx(m.dataset.cx);else explainCx(m.dataset.cx);return}
+  if(el&&S.armed==='reroute')applyRun(byId(el.dataset.id));
+});
+
+// ---------- Render: panels ----------
+// HTML bits only re-render when their content changes, so hover states and pop-ins don't flicker.
+const ui={sig:{},logOpen:false,boardOpen:false,logSeen:0};
+function setHTML(sel,html){if(ui.sig[sel]!==html){ui.sig[sel]=html;$(sel).innerHTML=html}}
+function renderPanels(){
+  const a=S.areas.length,open=openCx(),urgent=open.some(c=>S.cx[c.key].remain<6);
+  const pips=Array.from({length:CONFIG.maxAreas},(_,i)=>`<i class="pip${i<a?' on':''}"></i>`).join('');
+  setHTML('#chips',`${S.ranked?`<span class="chip" title="Ranked round">${esc(NET.nick)} · <b>${S.round}</b></span>`:''}<span class="chip">Week <b>${S.week}</b></span><span class="chip">Fitted <b>${S.connected}</b></span>
+    <span class="chip${urgent?' bad':''}" title="Open crossings: the red rings in the plan">Crossings <b>${open.length}</b></span>
+    <span class="chip" title="Three Clash Areas stall the project">Clash Areas <span class="pips">${pips}</span></span>`);
+  $('#weekfill').style.width=(100*S.weekT/CONFIG.weekLen)+'%';
+  // Card dock: icon + count; a card won at the meeting pops in
+  const g=S.gained&&fresh(S.gained.at,1)?S.gained:null;
+  setHTML('#dock',['drop','reroute','defer'].map((k,i)=>`<button class="cardic${S.armed===k?' armed':''}${g&&g.k===k?' new':''}" data-card="${k}" ${S.hand[k]?'':'disabled'} aria-label="${CARDS[k].name}, ${S.hand[k]} left">
+    <svg><use href="#ic-c-${k}"/></svg><span class="n">${S.hand[k]}</span><span class="tip"><i>${i+1}</i>${CARDS[k].name}</span></button>`).join(''));
+  setHTML('#armed',S.armed?(CARDS[S.armed].target==='cx'?`${CARDS[S.armed].name}: click a red ring · Esc cancels`:'Reroute: click a run or a waiting service · Esc cancels'):'');
+  if(ui.logOpen)ui.logSeen=S.log.length;
+  setHTML('#logN',S.log.length>ui.logSeen?String(S.log.length-ui.logSeen):'');
+  setHTML('#log',S.log.length?S.log.map(l=>`<li class="${l.kind}"><span class="w">W${l.week}</span>${l.text}</li>`).join(''):'<li>Decisions you name appear here. Clash Areas do too.</li>');
+  $('#drawer').classList.toggle('open',ui.logOpen);
+  $('#board').classList.toggle('open',ui.boardOpen);
+}
+$('#dock').addEventListener('click',e=>{const b=e.target.closest('[data-card]');if(b)arm(b.dataset.card)});
+$('#bLog').addEventListener('click',()=>{ui.logOpen=!ui.logOpen;ui.boardOpen=false;renderPanels()});
+$('#bBoard').addEventListener('click',()=>{ui.boardOpen=!ui.boardOpen;ui.logOpen=false;renderBoard();renderPanels()});
+
+// Hover highlight across both views and the list
+function hoverIds(t){const el=t&&t.closest&&t.closest('[data-id],[data-ids]');if(!el)return null;return el.dataset.ids?el.dataset.ids.split(','):[el.dataset.id]}
+for(const el of[sec,plan]){
+  el.addEventListener('pointerover',e=>{if(drag)return;S.hl=hoverIds(e.target);applyHL()});
+  el.addEventListener('pointerleave',()=>{S.hl=null;applyHL()});
+}
+function applyHL(){
+  const ids=S.hl;
+  document.querySelectorAll('#sec .run,#sec .tok,#plan .run').forEach(el=>el.classList.toggle('dim',!!ids&&!ids.includes(el.dataset.id)));
+  document.querySelectorAll('#plan .mk').forEach(el=>el.classList.toggle('dim',!!ids&&!el.dataset.ids.split(',').some(i=>ids.includes(i))));
+  // Light up the room(s) the hovered, selected or dragged service goes to
+  const doors=new Set([...(ids||[]),S.sel,drag&&drag.id].map(id=>id&&byId(id)).filter(Boolean).map(r=>r.door));
+  document.querySelectorAll('#plan [data-room]').forEach(el=>el.querySelector('.ric').classList.toggle('hot',doors.has(+el.dataset.room)));
+}
+
+function render(){renderSec();renderPlan();renderPanels();applyHL()}
+
+// ---------- Online: Kahoot-style games on Firebase (GitHub Pages build) ----------
+// firebase-config.js sets window.MINIMEP_FIREBASE; net.js connects and fires 'mininet-ready' with window.MiniNet.
+// Data: sessions/<PIN> {hostUid, mode:'live'|'open', status:'lobby'|'playing'|'closed', seed, createdAt, startedAt}
+//       sessions/<PIN>/players/<player id> {nick, joinedAt, state, games, best, runs[]}; each player writes only their own.
+// With no config the game plays offline as practice.
+const PARAMS=new URLSearchParams(location.search);
+const NET={api:null,expected:!!(window.MINIMEP_FIREBASE||window.__MINIMEP_FAKE),ready:false,failed:false,practice:false,
+  pin:'',session:null,players:[],playersLoaded:false,nick:'',joined:false,unsub:[],writing:Promise.resolve(),lastStatus:null};
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+// Ranking: most services fitted, then fewest Clash Areas, then most weeks
+const better=(a,b)=>a.fitted!==b.fitted?a.fitted>b.fitted:a.areas!==b.areas?a.areas<b.areas:a.weeks>b.weeks;
+function firstModal(){return NET.expected&&!NET.joined&&!NET.practice&&!NET.failed?'join':'intro'}
+function onNetReady(){
+  if(NET.ready||!window.MiniNet)return;
+  NET.api=window.MiniNet;NET.ready=true;
+  if(S.modal==='join'){
+    const b=$('#modal [data-act="pin"]');if(b){b.disabled=false;b.textContent='Enter'}
+    if(PARAMS.get('pin')&&!NET.pin)submitPin();      // a link with ?pin= skips straight to the nickname
+  }
+}
+addEventListener('mininet-ready',onNetReady);
+addEventListener('mininet-failed',()=>{NET.failed=true;if(S.modal==='join'){toast("Can't reach the game server. You can still practice.",true,5000);showModal('intro')}});
+function initNet(){onNetReady()}
+
+async function submitPin(){
+  if(!NET.ready){toast('Still connecting. Try again in a moment.');return}
+  const inp=$('#pin'),pin=((inp?inp.value:PARAMS.get('pin'))||'').replace(/\D/g,'');
+  if(pin.length!==6){toast('The game PIN has 6 digits.',true);if(inp)inp.focus();return}
+  let ses=null;
+  try{ses=await NET.api.getSession(pin)}catch(e){toast("Couldn't check that PIN. Try again.",true);return}
+  if(!ses){toast(`No game with PIN ${pin}. Check the host's screen.`,true);if(inp)inp.focus();return}
+  if(ses.status==='closed'){toast(`Game ${pin} has already ended.`,true);return}
+  NET.pin=pin;NET.session=ses;NET.lastStatus=ses.status;watchGame(pin);showModal('nick');
+}
+function watchGame(pin){
+  NET.unsub.forEach(u=>u());
+  NET.unsub=[
+    NET.api.watchSession(pin,s=>{NET.session=s;onSession()}),
+    NET.api.watchPlayers(pin,ps=>{
+      NET.players=ps;NET.playersLoaded=true;const me=ps.find(p=>p.id===NET.api.uid);
+      if(me&&me.nick&&!NET.nick){NET.nick=me.nick;const i=$('#nick');if(S.modal==='nick'&&i&&!i.value)i.value=me.nick}
+      if(S.modal==='lobby')setHTML('#lobby',lobbyChips());
+      const rl=$('#rankline');if(rl&&S.runAt)rl.innerHTML=rankLine();   // rank updates live as others finish
+      renderBoard();
+    })
+  ];
+  $('#bBoard').hidden=false;renderBoard();
+}
+function joinWithNick(){
+  if(!NET.playersLoaded){toast('Loading the game. Try again in a second.');return}
+  const inp=$('#nick'),nick=(inp?inp.value:'').trim().replace(/\s+/g,' ');
+  if(!/^[\p{L}\p{N} _.-]{2,16}$/u.test(nick)){toast('Pick a nickname: 2 to 16 letters, numbers, spaces, _ . or -',true,4000);if(inp)inp.focus();return}
+  const clash=NET.players.find(p=>p.id!==NET.api.uid&&(p.nick||'').toLowerCase()===nick.toLowerCase());
+  if(clash){toast(`"${nick}" is taken in this game. Try another nickname.`,true);if(inp)inp.focus();return}
+  NET.nick=nick;NET.joined=true;NET.practice=false;
+  saveMe(me=>({...me,nick,joinedAt:me.joinedAt||new Date().toISOString(),state:me.state||'lobby',games:me.games||0,best:me.best||null,runs:me.runs||[]}));
+  afterJoin();
+}
+function afterJoin(){
+  const s=NET.session;
+  if(!s||s.status==='closed'){showModal('closed');return}
+  if(s.mode==='live'&&s.status==='lobby'){showModal('lobby');return}
+  newGame(s.seed);                                    // open round, or a live game already running: rules, then Start
+}
+function onSession(){
+  const s=NET.session,prev=NET.lastStatus;NET.lastStatus=s?s.status:null;renderBoard();
+  if(!s||!NET.joined)return;
+  if(s.status==='playing'&&prev!=='playing'&&S.modal==='lobby')countdown(()=>{newGame(s.seed);startRanked()});
+  else if(s.status==='closed'&&prev!=='closed'){
+    if(S.ranked&&!S.over&&!S.modal)toast('The host has closed this game. Your score from here may not save.',true,6000);
+    else if(S.modal==='over')toast('The host has closed this game. Final scores are behind the trophy.',false,5000);
+    else showModal('closed');
+  }
+}
+// 3, 2, 1, GO! before a live start
+function countdown(done){
+  const el=$('#cd'),n=$('#cdn'),steps=['3','2','1','GO!'];let i=0;
+  $('#ov').classList.remove('show');S.modal='countdown';el.classList.add('show');
+  const step=()=>{
+    if(i===steps.length){el.classList.remove('show');done();return}
+    n.textContent=steps[i++];n.classList.remove('pop');void n.offsetWidth;n.classList.add('pop');
+    setTimeout(step,CONFIG.countdownMs);
+  };
+  step();
+}
+function leaveGame(){
+  NET.unsub.forEach(u=>u());NET.unsub=[];
+  Object.assign(NET,{pin:'',session:null,players:[],playersLoaded:false,joined:false,practice:false,lastStatus:null});
+  $('#bBoard').hidden=true;ui.boardOpen=false;
+  if(history.replaceState&&PARAMS.get('pin'))history.replaceState(null,'',location.pathname);
+  PARAMS.delete('pin');newGame();
+}
+function startGame(){
+  if(!NET.joined){hideModal();render();return}
+  if(!NET.session||NET.session.status==='closed'){showModal('closed');return}
+  if(S.seed!==NET.session.seed)newGame(NET.session.seed);
+  startRanked();
+}
+function startRanked(){
+  S.ranked=true;S.round=NET.pin;hideModal();render();
+  saveMe(me=>({...me,state:'playing'}));
+}
+function lobbyChips(){
+  const ps=NET.players.slice().sort((a,b)=>(a.joinedAt||'').localeCompare(b.joinedAt||''));
+  return ps.length?ps.map(p=>`<span class="${p.id===NET.api.uid?'me':''}">${esc(p.nick)}</span>`).join(''):'<span>…</span>';
+}
+// One write at a time to the player's own document, always built from the latest copy
+function saveMe(build){
+  if(!NET.api||!NET.pin)return Promise.resolve();
+  const pin=NET.pin;
+  NET.writing=NET.writing.then(()=>{
+    const me=NET.players.find(p=>p.id===NET.api.uid)||{};const{id,...body}=me;
+    const next=build(body);
+    const i=NET.players.findIndex(p=>p.id===NET.api.uid);
+    if(i>=0)NET.players[i]={id:NET.api.uid,...next};else NET.players.push({id:NET.api.uid,...next});
+    return NET.api.setPlayer(pin,next);
+  }).catch(e=>{
+    console.error(e);
+    toast(NET.session&&NET.session.status==='closed'?'This game is closed, so the score was not saved.':'Saving the score failed. It will not show on the leaderboard.',true,5000);
+  });
+  return NET.writing;
+}
+function submitRun(){
+  const run={at:new Date().toISOString(),pin:NET.pin,seed:S.seed,fitted:S.connected,weeks:S.week,decisions:S.decisions,
+    areas:S.areas.length,reason:S.over.reason,used:{...S.used},bands:S.bands.map(b=>b.join('+')),secs:Math.round(S.t),version:CONFIG.version};
+  S.runAt=run.at;
+  saveMe(me=>{
+    const best=me.best&&!better(run,me.best)?me.best:{fitted:run.fitted,areas:run.areas,weeks:run.weeks,at:run.at};
+    return{...me,nick:NET.nick,state:'done',games:(me.games||0)+1,best,runs:[...(me.runs||[]),run].slice(-20),updatedAt:run.at};
+  }).then(()=>{if(S.modal==='over')showModal('over');renderBoard()});
+}
+function extendRun(){
+  const at=S.runAt,ext={fitted:S.connected,weeks:S.week,areas:S.areas.length,reason:S.over.reason};
+  saveMe(me=>({...me,runs:(me.runs||[]).map(r=>r.at===at?{...r,afterChance:ext}:r)}));
+}
+function sendComment(){
+  const inp=$('#cmt');if(!inp)return;const c=inp.value.trim().slice(0,200);if(!c)return;
+  const at=S.runAt;inp.value='';inp.placeholder='Thanks! Sent.';
+  saveMe(me=>({...me,runs:(me.runs||[]).map(r=>r.at===at?{...r,comment:c}:r)}));
+}
+function standings(){
+  return NET.players.filter(p=>p.best).map(p=>({id:p.id,nick:p.nick||'?',games:p.games||0,...p.best}))
+    .sort((a,b)=>better(a,b)?-1:better(b,a)?1:0);
+}
+function rankLine(){
+  if(!NET.joined)return'';const st=standings(),i=st.findIndex(p=>p.id===NET.api.uid);
+  return i<0?'Saving to the leaderboard…':`Score saved. You're <b>#${i+1}</b> of ${st.length} in game ${NET.pin}.`;
+}
+function renderBoard(){
+  if(!NET.pin)return;
+  $('#boardTitle').textContent=`Game ${NET.pin} leaderboard`;
+  const st=standings(),waiting=NET.players.length-st.length;
+  setHTML('#lb',(st.length?st.map((p,i)=>`<li class="${p.id===NET.api.uid?'me':''}"><span class="rk">${i+1}</span><span>${esc(p.nick)}</span><span class="sc">${p.fitted}</span>
+    <p class="sub">${p.areas} Clash Area${p.areas===1?'':'s'} · ${p.weeks} week${p.weeks===1?'':'s'} · ${p.games} game${p.games===1?'':'s'}</p></li>`).join('')
+    :'<li><span></span><span>No scores yet in this game.</span></li>')
+    +(waiting>0?`<li><span></span><span class="sub" style="margin:0">${waiting} more player${waiting===1?'':'s'} still playing or waiting</span></li>`:''));
+}
+
+// ---------- Controls ----------
+function togglePause(){if(S.over)return;if(S.modal==='paused')hideModal();else if(!S.modal)showModal('paused');render()}
+$('#bPause').addEventListener('click',togglePause);
+$('#bRestart').addEventListener('click',()=>{newGame();});
+addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='INPUT'){if(e.key==='Enter'){const id=e.target.id;if(id==='pin')submitPin();else if(id==='nick')joinWithNick();else if(id==='cmt')sendComment()}return}
+  if(e.key===' '){e.preventDefault();if(S.modal==='intro')startGame();else togglePause()}
+  else if(e.key==='Escape'){S.armed=null;S.sel=null;render()}
+  else if(e.key==='r'||e.key==='R'){if(!S.modal||S.over)newGame()}
+  else if(['1','2','3'].includes(e.key))arm(['drop','reroute','defer'][+e.key-1]);
+});
+
+let last=performance.now(),acc=0;
+function frame(now){
+  const dt=Math.min(0.1,(now-last)/1000);last=now;
+  tick(dt*CONFIG.speed); acc+=dt; if(acc>0.2){acc=0;render()}
+  requestAnimationFrame(frame);
+}
+
+// Debug and test hook (same idea as the prototype's __vp)
+window.__toy={get S(){return S},CONFIG,TYPES,newGame,spawn,tick,endWeek,takeOffer,render,
+  start(){hideModal();render()},
+  place(id,lane,layer){const r=byId(id);if(!r||!canPlace(r,lane,layer))return false;place(r,lane,layer);return true},
+  crossings(){return S.list.map(c=>c.key)},
+  arm,applyCx,applyRun:id=>applyRun(byId(id)),chooseHeight,reband,gameOver,NET};
+
+newGame();
+requestAnimationFrame(frame);
+initNet();
+</script>
+</body>
+</html>

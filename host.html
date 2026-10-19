@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mini MEP Host</title>
+<script src="firebase-config.js"></script>
+<script type="module" src="net.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Host screen: made for a projector. Huge PIN, players popping in, live leaderboard. Tokens match the game. */
+:root{
+  --bg:#ECF0EE; --panel:#F9FBFA; --ink:#17262A; --muted:#5A6A6D; --line:#C8D2CF; --soft:#E1E8E5;
+  --accent:#0E6A88; --danger:#C2372C; --ok:#2F7D4F; --warn:#B87A0C;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1719; --panel:#152125; --ink:#E2EBE9; --muted:#93A4A6; --line:#2B3B3F; --soft:#1C2A2E;
+  --accent:#56B9D9; --danger:#F0695C; --ok:#5CC48A; --warn:#E2A63A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1719; --panel:#152125; --ink:#E2EBE9; --muted:#93A4A6; --line:#2B3B3F; --soft:#1C2A2E;
+  --accent:#56B9D9; --danger:#F0695C; --ok:#5CC48A; --warn:#E2A63A; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--display);font-size:17px;padding:20px max(16px,3vw) 32px}
+.wrap{max-width:1400px;margin:0 auto;display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;justify-content:space-between}
+h1{margin:0;font-size:26px} h1 small{font:500 14px var(--mono);color:var(--muted);margin-left:8px}
+h2{margin:0 0 12px;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+button{font:600 17px var(--display);border:1.5px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:11px 22px;cursor:pointer}
+button:hover{border-color:var(--accent)} button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+button.danger{color:var(--danger)} button:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px;min-width:0}
+.muted{color:var(--muted)}
+/* Setup */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.modes button{text-align:left;padding:24px;display:grid;gap:8px;font-weight:500;border-radius:14px}
+.modes button b{font-size:24px} .modes button span{font-size:16px;color:var(--muted);line-height:1.45}
+.mine{display:flex;flex-wrap:wrap;gap:8px} .mine button{font-family:var(--mono);padding:8px 14px;font-size:16px}
+/* Game */
+.joinbar{display:grid;grid-template-columns:1fr auto;gap:16px 28px;align-items:center}
+.joinat{font-size:22px;line-height:1.4} .joinat b{font-family:var(--mono);font-weight:600}
+.pin{text-align:center} .pin small{display:block;font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.pin div{font:700 clamp(64px,9vw,120px)/1 var(--mono);letter-spacing:.08em}
+.status{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:18px;padding:6px 14px;border-radius:999px;background:var(--soft)}
+.status i{width:12px;height:12px;border-radius:50%;background:var(--muted)}
+.status.lobby i{background:var(--warn)} .status.playing i{background:var(--ok)} .status.closed i{background:var(--danger)}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.grid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(380px,1.6fr);gap:20px;align-items:start}
+.players{display:flex;flex-wrap:wrap;gap:10px;min-height:50px}
+.players span{display:inline-flex;align-items:center;gap:8px;padding:9px 10px 9px 18px;border-radius:999px;background:var(--soft);border:1.5px solid var(--line);font-weight:600;font-size:20px;animation:pop .45s cubic-bezier(.3,1.6,.5,1) both}
+.players span.done{border-color:var(--ok)} .players span.playing{border-color:var(--accent)}
+.players span button{padding:0;width:28px;height:28px;border-radius:50%;font-size:16px;line-height:1;border:none;background:transparent;color:var(--muted)}
+.players span button:hover{color:var(--danger);background:var(--panel)}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+table{width:100%;border-collapse:collapse;font-size:19px;font-variant-numeric:tabular-nums}
+th{text-align:left;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:6px 10px;border-bottom:1.5px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line)} td.n{font-family:var(--mono);text-align:right} th.n{text-align:right}
+tr:first-child td{font-weight:700} td.rk{font-family:var(--mono);color:var(--muted);width:44px}
+.tablewrap{overflow-x:auto}
+.toast{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:12px 22px;border-radius:999px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.toast.show{opacity:1}
+[hidden]{display:none!important}
+@media (max-width:860px){.modes,.grid,.joinbar{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.players span{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Mini MEP <small>Host</small></h1>
+    <span class="muted" id="conn">Connecting…</span>
+  </header>
+
+  <section id="setup" class="card" hidden>
+    <h2>Host a game</h2>
+    <div class="modes">
+      <button data-mode="live"><b>Live game</b><span>Players join a lobby with the PIN. You press Start and everyone starts the same game at the same moment, Kahoot style.</span></button>
+      <button data-mode="open"><b>Open round</b><span>The PIN stays open. Testers play whenever they like, as often as they like. Their best score counts.</span></button>
+    </div>
+    <div id="mineWrap" hidden style="margin-top:22px"><h2>Your games on this browser</h2><div class="mine" id="mine"></div></div>
+  </section>
+
+  <section id="game" hidden>
+    <div class="card joinbar">
+      <div>
+        <div class="joinat">Join at <b id="joinUrl"></b></div>
+        <div class="controls" style="margin-top:14px">
+          <span class="status" id="status"><i></i><span></span></span>
+          <button class="primary" id="bStart" hidden>Start game</button>
+          <button id="bCopy">Copy join link</button>
+          <button id="bCsv">Download results</button>
+          <button class="danger" id="bClose">Close game</button>
+          <button id="bNew">New game</button>
+        </div>
+      </div>
+      <div class="pin"><small>Game PIN</small><div id="pin"></div></div>
+    </div>
+    <div class="grid" style="margin-top:20px">
+      <div class="card"><h2 id="pCount">Players</h2><div class="players" id="players"></div></div>
+      <div class="card"><h2>Leaderboard</h2><div class="tablewrap"><table>
+        <thead><tr><th></th><th>Nickname</th><th class="n">Fitted</th><th class="n">Clash Areas</th><th class="n">Weeks</th><th class="n">Games</th></tr></thead>
+        <tbody id="board"></tbody></table></div>
+        <p class="muted" style="margin:12px 0 0;font-size:15px">Ranked by services fitted, then fewest Clash Areas, then most weeks. Each player's first stall counts.</p></div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+const better=(a,b)=>a.fitted!==b.fitted?a.fitted>b.fitted:a.areas!==b.areas?a.areas<b.areas:a.weeks>b.weeks;
+const H={api:null,pin:null,session:null,players:[],unsub:[],seen:new Set()};
+const joinBase=new URL('./',location.href);                    // the game sits next to this page
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3500)}
+function mine(){try{return JSON.parse(localStorage.getItem('minimep.host.games')||'[]')}catch(e){return[]}}
+function remember(pin){try{const l=[pin,...mine().filter(p=>p!==pin)].slice(0,12);localStorage.setItem('minimep.host.games',JSON.stringify(l))}catch(e){}}
+
+function ready(){
+  if(H.api||!window.MiniNet)return;
+  H.api=window.MiniNet;$('#conn').textContent='Connected';
+  const pin=new URLSearchParams(location.search).get('pin');
+  if(pin)openGame(pin);else showSetup();
+}
+addEventListener('mininet-ready',ready);
+addEventListener('mininet-failed',()=>{$('#conn').textContent="Can't reach the game server. Check firebase-config.js."});
+if(!window.MINIMEP_FIREBASE&&!window.__MINIMEP_FAKE)$('#conn').textContent='Not set up yet: add the Firebase config to firebase-config.js.';
+
+function showSetup(){
+  H.unsub.forEach(u=>u());H.unsub=[];H.pin=null;
+  $('#game').hidden=true;$('#setup').hidden=false;
+  history.replaceState(null,'',location.pathname);
+  const l=mine();$('#mineWrap').hidden=!l.length;
+  $('#mine').innerHTML=l.map(p=>`<button data-pin="${esc(p)}">${esc(p)}</button>`).join('');
+}
+$('#mine').addEventListener('click',e=>{const b=e.target.closest('[data-pin]');if(b)openGame(b.dataset.pin)});
+document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>createGame(b.dataset.mode)));
+
+async function createGame(mode){
+  for(let i=0;i<6;i++){
+    const pin=String(100000+Math.floor(Math.random()*900000));
+    if(await H.api.getSession(pin))continue;
+    const now=new Date().toISOString();
+    try{
+      await H.api.createSession(pin,{mode,status:mode==='live'?'lobby':'playing',seed:1+Math.floor(Math.random()*1e9),
+        createdAt:now,startedAt:mode==='open'?now:null,version:'web-v0.5'});
+    }catch(e){console.error(e);continue}
+    remember(pin);openGame(pin);return;
+  }
+  toast("Couldn't create a game. Check the Firebase setup and try again.");
+}
+async function openGame(pin){
+  const s=await H.api.getSession(pin);
+  if(!s){toast(`No game with PIN ${pin}.`);showSetup();return}
+  if(s.hostUid!==H.api.uid)toast('You can watch this game, but it was hosted from another browser, so its buttons will not work.');
+  H.pin=pin;H.seen=new Set();remember(pin);
+  history.replaceState(null,'',`${location.pathname}?pin=${pin}`);
+  $('#setup').hidden=true;$('#game').hidden=false;
+  $('#pin').textContent=pin;
+  $('#joinUrl').textContent=(joinBase.host+joinBase.pathname).replace(/\/$/,'');
+  H.unsub.forEach(u=>u());
+  H.unsub=[H.api.watchSession(pin,x=>{H.session=x;renderGame()}),H.api.watchPlayers(pin,ps=>{H.players=ps;renderGame()})];
+}
+function renderGame(){
+  const s=H.session;if(!s)return;
+  const st=$('#status'),label={lobby:'Lobby: waiting to start',playing:s.mode==='open'?'Open round: playing anytime':'Playing',closed:'Game closed'}[s.status]||s.status;
+  st.className='status '+s.status;st.querySelector('span').textContent=label;
+  $('#bStart').hidden=!(s.mode==='live'&&s.status==='lobby');
+  $('#bClose').hidden=s.status==='closed';
+  const ps=H.players.slice().sort((a,b)=>(a.joinedAt||'').localeCompare(b.joinedAt||''));
+  $('#pCount').textContent=`${ps.length} player${ps.length===1?'':'s'}`;
+  // Only new chips animate in; existing ones keep their place
+  const host=s.hostUid===H.api.uid;
+  $('#players').innerHTML=ps.length?ps.map(p=>{const fresh=!H.seen.has(p.id);H.seen.add(p.id);
+    return `<span class="${esc(p.state||'')}" style="${fresh?'':'animation:none'}">${esc(p.nick)}${host?`<button aria-label="Remove ${esc(p.nick)}" data-kick="${esc(p.id)}">✕</button>`:''}</span>`}).join('')
+    :'<span class="muted" style="animation:none;background:none;border:none;padding:0;font-weight:400;font-size:18px">Waiting for players to join…</span>';
+  const ranked=H.players.filter(p=>p.best).sort((a,b)=>better(a.best,b.best)?-1:better(b.best,a.best)?1:0);
+  $('#board').innerHTML=ranked.length?ranked.map((p,i)=>`<tr><td class="rk">${i+1}</td><td>${esc(p.nick)}</td><td class="n">${p.best.fitted}</td><td class="n">${p.best.areas}</td><td class="n">${p.best.weeks}</td><td class="n">${p.games||0}</td></tr>`).join('')
+    :'<tr><td></td><td class="muted" colspan="5">Scores appear here as players finish.</td></tr>';
+}
+$('#players').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-kick]');if(!b)return;
+  try{await H.api.removePlayer(H.pin,b.dataset.kick);toast('Player removed.')}catch(err){toast("Couldn't remove that player.")}
+});
+$('#bStart').addEventListener('click',async()=>{
+  try{await H.api.updateSession(H.pin,{status:'playing',startedAt:new Date().toISOString()})}catch(e){toast("Couldn't start the game.")}
+});
+$('#bClose').addEventListener('click',async()=>{
+  const b=$('#bClose');
+  if(b.dataset.confirm!=='1'){b.dataset.confirm='1';b.textContent='Click again to close';setTimeout(()=>{b.dataset.confirm='';b.textContent='Close game'},3000);return}
+  try{await H.api.updateSession(H.pin,{status:'closed'});toast('Game closed. Scores are kept.')}catch(e){toast("Couldn't close the game.")}
+});
+$('#bNew').addEventListener('click',showSetup);
+$('#bCopy').addEventListener('click',async()=>{
+  const link=`${joinBase.href}?pin=${H.pin}`;
+  try{await navigator.clipboard.writeText(link);toast('Join link copied.')}catch(e){toast(link)}
+});
+// One row per finished run, for tuning the game
+$('#bCsv').addEventListener('click',()=>{
+  const cols=['pin','nickname','finished_at','fitted','clash_areas','weeks','decisions','ended_by','drop','reroute','defer','height_bands','seconds','after_chance_fitted','comment','version'];
+  const q=v=>{const t=String(v??'');return /[",\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t};
+  const rows=[cols.join(',')];
+  for(const p of H.players)for(const r of(p.runs||[]))rows.push([H.pin,p.nick,r.at,r.fitted,r.areas,r.weeks,r.decisions,r.reason,
+    r.used&&r.used.drop,r.used&&r.used.reroute,r.used&&r.used.defer,(r.bands||[]).join(' | '),r.secs,r.afterChance&&r.afterChance.fitted,r.comment,r.version].map(q).join(','));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
+  a.download=`mini-mep-${H.pin}.csv`;document.body.appendChild(a);a.click();a.remove();
+});
+window.__host=H;
+ready();
+</script>
+</body>
+</html>

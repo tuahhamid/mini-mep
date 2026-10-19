@@ -1,0 +1,39 @@
+rules_version = '2';
+// Mini MEP security rules. Paste into Firebase console → Firestore Database → Rules → Publish.
+// Everyone (signed in anonymously by the game) can read games and scores.
+// Only the host who created a game can change or close it, or remove a player.
+// Each player can write only their own score document, and only while the game is open.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function game(pin) { return get(/databases/$(database)/documents/sessions/$(pin)).data; }
+
+    match /sessions/{pin} {
+      allow read: if true;
+      allow create: if signedIn()
+        && pin.matches('^[0-9]{6}$')
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.mode in ['live', 'open']
+        && request.resource.data.status in ['lobby', 'playing']
+        && request.resource.data.seed is int;
+      allow update: if signedIn()
+        && resource.data.hostUid == request.auth.uid
+        && request.resource.data.hostUid == resource.data.hostUid
+        && request.resource.data.seed == resource.data.seed
+        && request.resource.data.status in ['lobby', 'playing', 'closed'];
+      allow delete: if false;
+
+      match /players/{playerId} {
+        allow read: if true;
+        allow create, update: if signedIn()
+          && request.auth.uid == playerId
+          && game(pin).status != 'closed'
+          && request.resource.data.nick is string
+          && request.resource.data.nick.size() >= 2
+          && request.resource.data.nick.size() <= 16
+          && (!('runs' in request.resource.data) || request.resource.data.runs.size() <= 20);
+        allow delete: if signedIn() && game(pin).hostUid == request.auth.uid;
+      }
+    }
+  }
+}
