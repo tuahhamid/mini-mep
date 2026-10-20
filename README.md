@@ -5,13 +5,14 @@
 **Play:** https://tuahhamid.github.io/mini-mep/
 
 ## How to play
-- New services arrive at the riser on the left. Drag each one into a free slot in the corridor section.
+- Press **Play**, then pick **With a game PIN** or **On my own**.
+- New services arrive at the riser. Drag each one into a green slot in the corridor section, or tap it and then tap a slot.
 - Each kind of service has its own height band: cables on top, ducts in the middle, pipes at the bottom.
-- Two services on the same level that turn across each other **cross**. Fix it, or play a card: **drop** one under the other, **reroute** one, or **defer** the decision.
+- Two services on the same level that turn across each other **cross**. Fix it by moving one, or use a power-up: **Drop** one under the other, **Reroute** one, or **Defer** the decision.
 - A crossing left alone too long becomes a **Clash Area**. Three Clash Areas and the project stalls.
-- At the end of each week, pick a card. In weeks 2 and 4 you can also gain 100 mm of height.
+- At the end of each week, pick a power-up to take back to site. In weeks 2 and 4 the architect also gives you an **Extra Layer**. Use **Peek at the corridor** to check the layout before you choose.
 
-Your score is the number of services fitted. Ties go to fewer Clash Areas, then to more weeks.
+Your score is the number of services fitted. Ties go to fewer Clash Areas, then to more weeks. Works on computers and phones (turn the phone sideways to play), in light or dark.
 
 ## Playing with friends
 Like Kahoot: one person opens the [host screen](https://tuahhamid.github.io/mini-mep/host.html) and shares the game PIN. Everyone else opens the game, types the PIN and picks a nickname. Nobody needs an account. Without a PIN, you can play a practice game.

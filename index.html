@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mini MEP</title>
+<script>try{const t=localStorage.getItem('minimep.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <script src="firebase-config.js"></script>
 <script type="module" src="net.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,6 +18,7 @@
   --room:#E3E9E6; --corr:#F4F6F5; --beam:#B7C0C4; --riser:#CFD9E3; --valid:#BFE3CD;
   --t-acmv:#4F86C2; --t-chw:#167A82; --t-elec:#C4452F; --t-elv:#3D9A4D; --t-ps:#8A5A2E; --t-fire:#DE7712; --t-mg:#7A4EAE;
   --go-ink:#FFFFFF;
+  --card:#FFFFFF; --tile:#FFFFFF; --tile-shadow:#C8D2CF; --dot:#DE7712; --menu:#2B7A93; --on-menu:#FFFFFF; --grid:rgba(23,38,42,.05);
   --display:"Archivo","Helvetica Neue",Arial,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -24,12 +26,14 @@
   --accent:#56B9D9; --danger:#F0695C; --warn:#E2A63A; --ok:#5CC48A; --area:#6B7679;
   --room:#1D2A2E; --corr:#18242A; --beam:#4A585E; --riser:#253744; --valid:#1F4A33;
   --t-acmv:#79A9DD; --t-chw:#3FB3BA; --t-elec:#EA6D57; --t-elv:#62C072; --t-ps:#C08A58; --t-fire:#F39A3D; --t-mg:#A983DB;
+  --card:#1C2A2E; --tile:#1C2A2E; --tile-shadow:#0A1012; --dot:#F39A3D; --menu:#56B9D9; --on-menu:#0F1719; --grid:rgba(226,235,233,.05);
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F1719; --panel:#152125; --ink:#E2EBE9; --muted:#93A4A6; --line:#2B3B3F; --soft:#1C2A2E;
   --accent:#56B9D9; --danger:#F0695C; --warn:#E2A63A; --ok:#5CC48A; --area:#6B7679;
   --room:#1D2A2E; --corr:#18242A; --beam:#4A585E; --riser:#253744; --valid:#1F4A33;
   --t-acmv:#79A9DD; --t-chw:#3FB3BA; --t-elec:#EA6D57; --t-elv:#62C072; --t-ps:#C08A58; --t-fire:#F39A3D; --t-mg:#A983DB;
+  --card:#1C2A2E; --tile:#1C2A2E; --tile-shadow:#0A1012; --dot:#F39A3D; --menu:#56B9D9; --on-menu:#0F1719; --grid:rgba(226,235,233,.05);
   color-scheme:dark}
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -57,10 +61,6 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #secCard h2{right:14px} #planCard h2{left:14px}
 svg{display:block;user-select:none;touch-action:none}
 #sec,#plan{flex:1;min-height:0;width:100%;height:100%}
-@media (max-width:900px){
-  body{overflow:auto} .wrap{height:auto} .board{grid-template-columns:1fr}
-  #sec{height:auto;aspect-ratio:482/414} #plan{height:auto;aspect-ratio:1000/560}
-}
 svg text{font-family:var(--display)}
 svg .lbl{font-size:11px;fill:var(--muted);letter-spacing:.04em}
 svg .mono{font-family:var(--mono)}
@@ -104,9 +104,8 @@ svg .mk.deferred .ring{stroke:var(--warn);stroke-width:3;fill:var(--panel);strok
 svg .mk.deferred text{fill:var(--warn)}
 svg .mk.resolved .ring{stroke:var(--ok);stroke-width:2;fill:var(--panel)}
 svg .mk.resolved text{fill:var(--ok)}
-svg .mk.area .ring{fill:var(--area);opacity:.9;stroke:none}
-svg .mk.area text{fill:var(--panel);font-weight:700}
-svg .mk text{font-family:var(--mono);font-size:10px;font-weight:600;text-anchor:middle;dominant-baseline:central}
+svg .mk.area .sq{fill:var(--area)} svg .mk.area .x{stroke:var(--panel);stroke-width:3.5;stroke-linecap:round;fill:none}
+svg .mk text{font-family:var(--mono);font-size:15px;font-weight:600;text-anchor:middle;dominant-baseline:central}
 /* Card dock: round icons floating over the plan, like the tool buttons in Mini Motorways */
 .dock{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:18px;z-index:2}
 .cardic{position:relative;width:78px;height:78px;border-radius:50%;padding:0;display:grid;place-items:center;background:var(--panel);border:1.5px solid var(--line);box-shadow:0 3px 10px rgba(0,0,0,.14);color:var(--ink)}
@@ -168,6 +167,7 @@ svg .mk.urgent{transform-box:fill-box;transform-origin:center;animation:urgent .
 @keyframes goFade{from{opacity:0}to{opacity:.75}}
 @media (prefers-reduced-motion:reduce){.gameover span,.gameover.show,.gameover small{animation:none}}
 #cd.show{animation:none}
+#cd small{animation:none;opacity:.85;font-size:20px}
 .gameover .cdn{font:700 clamp(110px,22vw,260px)/1 var(--display);color:var(--go-ink);text-shadow:0 8px 0 var(--accent),0 16px 40px rgba(0,0,0,.45)}
 .gameover .cdn.pop{animation:popin .45s cubic-bezier(.3,1.6,.5,1) both}
 .lobby{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;min-height:44px}
@@ -176,7 +176,7 @@ svg .mk.urgent{transform-box:fill-box;transform-origin:center;animation:urgent .
 .modal details{margin:0 0 16px} .modal summary{cursor:pointer;font-weight:600;font-size:17px;margin-bottom:10px}
 .pinline{font-size:17px} .pinline b{font-family:var(--mono)}
 #pin{grid-column:1/-1;font:700 34px var(--mono);letter-spacing:.25em;text-align:center}
-.overlay{position:fixed;inset:0;background:rgba(10,18,20,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+.overlay{position:fixed;inset:0;background:rgba(10,18,20,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
 .overlay.show{display:flex}
 .modal{max-height:calc(100vh - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:780px;width:100%;padding:30px 36px;box-shadow:0 14px 50px rgba(0,0,0,.28);font-size:17px}
 .modal h2{margin:0 0 12px;font-size:30px;line-height:1.2}
@@ -195,6 +195,218 @@ svg .hit{fill:transparent}
 @media (max-width:640px){.offers,.offers.three{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.modal{padding:22px 20px}}
 .toast{position:fixed;left:50%;top:64px;transform:translateX(-50%) translateY(-12px);opacity:0;pointer-events:none;background:var(--ink);color:var(--panel);padding:12px 22px;border-radius:999px;font-size:16px;font-weight:600;transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px);text-align:center;z-index:20}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)} .toast.warn{background:var(--danger)}
+.drawer .dclose{position:absolute;top:6px;right:6px;width:44px;height:44px;padding:0;border:0;background:none;font-size:24px;line-height:1;color:var(--muted)}
+.drawer .dclose:hover{color:var(--ink)}
+.pausebar{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
+/* Rotate prompt: a phone held upright during play. The game pauses until the phone turns sideways. */
+.rotate{position:fixed;inset:0;z-index:16;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:32px 28px;text-align:center;background:var(--bg)}
+.rotate[hidden]{display:none}
+.rotate h2{margin:0;font-size:30px;line-height:1.2}
+.rotate p{margin:0;font-size:17px;line-height:1.5;color:var(--muted);max-width:32ch}
+.rotate .live{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;background:var(--soft);font-size:16px;font-weight:600}
+.rotate .live i{width:10px;height:10px;border-radius:50%;background:var(--ok)}
+.rotate .live[hidden]{display:none}
+.rotate button.link{background:none;border:0;color:var(--accent);font-size:17px;text-decoration:underline;text-underline-offset:4px;min-height:44px}
+/* ---------- Screens before play: landing (option B) and the join flow, full page over the paused board ---------- */
+.overlay.screen{z-index:14;padding:0;align-items:stretch;justify-content:stretch;background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:48px 48px}
+.overlay.screen .modal{max-width:none;width:100%;max-height:none;height:100%;border:0;border-radius:0;box-shadow:none;background:transparent;padding:0;overflow:auto}
+.brandsq{display:inline-block;width:.16em;height:.16em;border-radius:.03em;background:var(--dot);margin-top:.08em;flex:none}
+.land{min-height:100%;position:relative;display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);align-items:center;gap:24px;padding:40px max(24px,4vw) 64px max(24px,8vw)}
+.land h1{margin:0;font-size:clamp(56px,7vw,104px);font-weight:800;line-height:1;letter-spacing:-.02em;display:flex;align-items:flex-start;gap:6px}
+.land .tagline{margin:14px 0 36px;font-size:20px;color:var(--muted)}
+.lmenu{display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.lmenu button{font:600 clamp(28px,2.6vw,38px) var(--display);padding:6px 18px;border:0;border-radius:3px;background:var(--menu);color:var(--on-menu);transition:transform .15s}
+.lmenu button:hover,.lmenu button:focus-visible{transform:translateX(8px)}
+.lmenu button.back{background:none;color:var(--muted);font-size:18px;padding:8px 2px}
+.land svg.scene{width:100%;max-width:760px;height:auto;justify-self:center}
+.land .foot{position:absolute;left:max(24px,8vw);bottom:20px;margin:0;font-size:15px;color:var(--muted)}
+@media (orientation:portrait) and (max-width:899px){.land{grid-template-columns:1fr;align-content:start;padding:32px 24px 72px}.land svg.scene{order:-1;max-width:520px}.land .foot{left:24px}}
+@media (orientation:landscape) and (max-height:500px){.land{padding:16px 24px 40px}.land h1{font-size:48px}.land .tagline{margin:8px 0 16px;font-size:16px}.lmenu button{font-size:24px}}
+.scr{min-height:100%;display:flex;flex-direction:column;gap:18px;padding:20px max(16px,3vw) 32px}
+.scrbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.scrbar .brand{display:flex;align-items:flex-start;gap:5px;font:800 24px var(--display);background:none;border:0;padding:0;color:var(--ink)}
+.scrbar .right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.scrbar .steps{list-style:none;margin:0;padding:0;display:flex;gap:6px;flex-wrap:wrap}
+.scrbar .steps li{padding:7px 14px;border-radius:999px;font-size:15px;font-weight:600;border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+.scrbar .steps li.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.scrbar .steps li.done{color:var(--ok);background:var(--soft)}
+.scrbar .tool{position:static;padding:0;width:48px;height:48px;border-radius:50%}
+.scrbar .brandsq{width:9px;height:9px;border-radius:2px;margin-top:4px}
+.scard{align-self:center;margin:auto 0;width:100%;max-width:640px;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:40px 44px;box-shadow:0 24px 60px rgba(0,0,0,.14);display:flex;flex-direction:column;gap:20px}
+.scard.wide{max-width:1040px}
+.scard h2{margin:0;font-size:36px;line-height:1.15}
+.scard p{margin:0}
+.scard .eyebrow{font:600 15px var(--mono);letter-spacing:.06em;color:var(--accent);margin-bottom:6px}
+.scard label{font-weight:600;font-size:17px}
+.scard .big{font-size:21px;padding:16px;border-radius:14px}
+.pinbox{position:relative;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.pinbox span{height:76px;border-radius:14px;border:2px solid var(--line);background:var(--card);display:grid;place-items:center;font:600 38px var(--mono)}
+.pinbox span.cur{border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 20%,transparent)}
+.pinbox input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:text;font-size:16px}
+.linkbtn{align-self:center;background:none;border:0;color:var(--accent);font-size:17px;text-decoration:underline;text-underline-offset:4px;padding:8px}
+.ideas{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ideas button{border-radius:999px;padding:9px 18px;font-size:17px}
+.scard #nick{font:700 28px var(--display);padding:14px 18px;border:2.5px solid var(--accent);border-radius:14px;background:var(--card);color:var(--ink);width:100%;min-width:0}
+.scard #nick:focus{outline:none}
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.how div{border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--card);display:flex;flex-direction:column;gap:10px}
+.how svg{width:100%;height:100px}
+.how b{font-size:19px} .how span{font-size:16.5px;line-height:1.45;color:var(--muted)}
+.closedlb{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.closedlb li{display:grid;grid-template-columns:32px 1fr auto;gap:10px;font-size:18px;padding:8px 10px;border-radius:10px;background:var(--soft)}
+.closedlb li.me{outline:2px solid var(--accent)}
+.closedlb .rk,.closedlb .sc{font-family:var(--mono)}
+@media (max-width:760px){.how{grid-template-columns:1fr}.scard{padding:26px 22px;border-radius:18px}.scard h2{font-size:30px}.pinbox{gap:7px}.pinbox span{height:60px;font-size:30px}}
+@media (orientation:landscape) and (max-height:500px){.scard{padding:20px 24px;gap:12px}.scard h2{font-size:26px}.pinbox span{height:52px;font-size:28px}.how svg{height:64px}}
+/* ---------- Gameplay (step 3): HUD with week dial, score and Clash Area slots; arrival cards; power-ups ---------- */
+header.hud{min-height:60px;gap:12px}
+.hudl,.hudr{display:flex;align-items:center;gap:16px}
+.dial{width:56px;height:56px;flex:none}
+.dialbg{fill:var(--panel);stroke:var(--soft);stroke-width:6}
+.dialarc{fill:none;stroke:var(--accent);stroke-width:6;stroke-linecap:round}
+.dial text{font:600 16px var(--mono);fill:var(--ink)}
+.weektxt{display:flex;flex-direction:column;line-height:1.2}
+.weektxt b{font-size:22px} .weektxt span{font-size:15px;color:var(--muted)}
+.score{display:flex;align-items:baseline;gap:6px}
+.score b{font:600 38px/1 var(--mono)} .score span{font-size:16px;color:var(--muted)}
+.areas{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.slots{display:flex;gap:6px}
+.slots i{width:26px;height:26px;border-radius:6px;border:2px dashed var(--area);display:grid;place-items:center;font-style:normal;font-weight:700;font-size:15px;color:var(--panel)}
+.slots i.on{background:var(--area);border-style:solid}
+.slots i.on::after{content:"\2715"}
+.alabel{font-size:14px;color:var(--muted)}
+header.hud{position:relative;z-index:1}   /* stays under dialogs and their scrim */
+header.hud .tools{position:static;z-index:auto}
+#rankChip[hidden]{display:none}
+#sec .lbl{font-size:13px} #plan .lbl{font-size:14px} #plan .rid{font-size:12px}
+.drawer{top:12px}
+#secCard{flex-direction:column;padding:14px 16px 10px;gap:10px}
+#secCard h2{position:static}
+.qhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.qhead span{font:600 15px var(--mono);color:var(--muted)} .qhead span.full{color:var(--danger)}
+.queue{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-height:92px}
+.qcard{position:relative;border:1.5px solid var(--line);border-radius:12px;padding:9px 11px;background:var(--card);display:flex;flex-direction:column;gap:5px;cursor:grab;touch-action:none;user-select:none;min-width:0}
+.qcard .qid{display:flex;align-items:center;gap:8px;font:600 17px var(--mono)}
+.qcard .qroom{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:600;min-width:0}
+.qcard .qroom svg{width:18px;height:18px;color:var(--accent);flex:none}
+.qcard .rn,.qcard .qname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qcard .qname{font-size:14px;color:var(--muted)}
+.qcard.sel{border:2px solid var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.qcard.nofit{border:2px solid var(--danger)} .qcard.nofit .qname{color:var(--danger);font-weight:600}
+.qcard.dragging{opacity:.35}
+.qcard.pop{animation:popin .5s cubic-bezier(.3,1.6,.5,1) both}
+.qcard .qpulse{position:absolute;inset:-4px;border-radius:15px;border:3px solid var(--accent);animation:qpulse 1s ease-out 3 both;pointer-events:none}
+@keyframes qpulse{from{opacity:.9;transform:scale(.97)}to{opacity:0;transform:scale(1.08)}}
+.qcard.target{border:2px solid var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,transparent)}
+.qcard.dim,.qcard.nope{opacity:.35}
+.qslot{border:1.5px dashed var(--line);border-radius:12px;display:grid;place-items:center;color:var(--muted);font-size:14px;text-align:center;padding:6px}
+.swp{width:16px;height:16px;border-radius:50%;flex:none} .swd{width:28px;height:15px;border-radius:3px;flex:none} .swt{width:24px;height:8px;border-radius:2px;flex:none}
+svg .hint{font-size:15px;font-weight:600;fill:var(--ink)}
+.dock .pu{display:flex;flex-direction:column;align-items:center;gap:6px}
+.dock .pu b{font-size:15px;font-weight:600}
+.dock .pu.off{opacity:.45} .dock .pu.off .cardic:disabled{opacity:1}
+.armedline{bottom:132px}
+svg .mk .halo{fill:none;stroke:var(--accent);stroke-width:4;opacity:.55}
+svg .mk.target .ring,svg .mk.target .arc{stroke:var(--accent)}
+svg .mk.target text{fill:var(--accent)}
+svg .mk.nope{opacity:.3}
+svg .mk .why{font-family:var(--display);font-size:14px;font-weight:600;fill:var(--muted);paint-order:stroke;stroke:var(--panel);stroke-width:4px}
+body.armed-cx #plan .run,body.armed-cx #sec .run{opacity:.45}
+svg .run.target .pline{filter:drop-shadow(0 0 5px var(--accent))} svg .run.target .shape{stroke:var(--accent);stroke-width:3}
+svg .run.nope{opacity:.3}
+svg .dtag text{font-family:var(--display);font-size:14px;font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--panel);stroke-width:4px}
+svg .dtag text+text{fill:var(--muted);font-weight:500}
+svg .callout line{stroke:var(--ink);stroke-width:2}
+svg .callout rect{fill:var(--ink)}
+svg .callout .c1{font:600 16px var(--mono);fill:var(--bg)}
+svg .callout .c2{font-size:14px;fill:var(--bg);opacity:.85}
+/* Week meeting and Extra Layer: power-up cards over the dimmed board, with Peek */
+/* Rule (20 Oct): behind a dialog the board must be unreadable, only a hint of shape. To look at the board, use Peek. */
+.overlay.meeting{background:rgba(12,19,21,.9);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.overlay.meeting .modal{background:transparent;border:0;box-shadow:none;max-width:1000px;padding:12px;text-align:center;color:#fff}
+.overlay.peeking{display:none!important}
+.meet{display:flex;flex-direction:column;align-items:center;gap:14px}
+.meet .eyebrow{margin:0;font:600 15px var(--mono);letter-spacing:.1em;opacity:.85;color:#fff}
+.meet h2{margin:0;font-size:46px;font-weight:800;color:#fff}
+.meet .meetsub{margin:0;font-size:19px;opacity:.9;color:#fff}
+.meet .arch{margin:0;font-size:20px;font-style:italic;max-width:46ch;color:#fff}
+.pucards{display:flex;flex-wrap:wrap;justify-content:center;gap:24px;margin-top:10px}
+.pucard{width:310px;min-height:330px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:28px 24px;border-radius:20px;background:var(--panel);border:3px solid transparent;color:var(--ink);box-shadow:0 18px 40px rgba(0,0,0,.3)}
+.pucard:hover,.pucard:focus-visible{border-color:var(--accent);outline:none}
+.pucard .ci{width:96px;height:96px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;background:var(--card)}
+.pucard .ci svg{width:54px;height:54px}
+.pucard b{font-size:26px} .pucard span{font-size:17px;line-height:1.45;color:var(--muted)}
+.pucard small{margin-top:auto;font:600 15px var(--mono);color:var(--muted)}
+.bandcards{display:grid;grid-template-columns:repeat(3,minmax(0,280px));gap:18px;margin-top:6px}
+.bandcard{display:flex;flex-direction:column;align-items:stretch;gap:14px;padding:22px;border-radius:20px;background:var(--panel);border:3px solid transparent;color:var(--ink);text-align:left;box-shadow:0 18px 40px rgba(0,0,0,.3)}
+.bandcard:hover,.bandcard:focus-visible{border-color:var(--accent);outline:none}
+.bandcard .bt{display:flex;justify-content:space-between;align-items:center} .bandcard .bt b{font-size:26px}
+.btag{font-size:14px;font-weight:700;padding:4px 12px;border-radius:999px;color:var(--bg)}
+.btag.bad{background:var(--danger)} .btag.mid{background:var(--muted)} .btag.good{background:var(--ok)}
+.nums{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.nums span{display:flex;flex-direction:column;border-radius:12px;padding:10px 12px;font-size:15px;color:var(--ink)}
+.nums b{font:600 36px/1 var(--mono)}
+.nums .w{background:color-mix(in srgb,var(--danger) 14%,var(--panel))} .nums .w b{color:var(--danger)}
+.nums .f{background:color-mix(in srgb,var(--ok) 14%,var(--panel))} .nums .f b{color:var(--ok)}
+.bandcard p{margin:0;font-size:16px;line-height:1.45;color:var(--muted)}
+.meetbar{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px;margin-top:6px}
+.meetbar span{color:#fff;opacity:.85;font-size:16px}
+.overlay.meeting .modal .peekbtn{display:inline-flex;align-items:center;gap:10px;font-size:17px;padding:12px 20px;border-radius:12px;border:0;background:var(--panel);color:var(--ink)}
+.peekbtn svg{width:22px;height:22px}
+.peekbar{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:17;display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;background:var(--ink);color:var(--bg);border-radius:18px;padding:12px 14px 12px 22px;box-shadow:0 12px 30px rgba(0,0,0,.3);max-width:calc(100vw - 24px)}
+.peekbar[hidden]{display:none}
+.peekbar span{display:flex;flex-direction:column} .peekbar b{font-size:17px} .peekbar small{font-size:15px;opacity:.85}
+@media (max-width:760px),(orientation:landscape) and (max-height:500px){
+  .pucard{width:100%;min-height:0;padding:16px}.pucards{gap:12px}.bandcards{grid-template-columns:1fr}
+  .meet h2{font-size:30px}.meet .arch{font-size:16px}.pucard .ci{width:60px;height:60px}.pucard .ci svg{width:34px;height:34px}
+  .nums b{font-size:28px}
+}
+/* ---------- Three layouts (agreed 20 Oct): desktop above 1100 px, compact 700 to 1100 px, phone under 700 px.
+   Browser zoom is covered by the same rules: zooming in narrows the width the page sees. ---------- */
+/* Compact: laptops at 125-150% zoom, tablets */
+@media (max-width:1100px){
+  .wrap{padding:8px 12px 12px;gap:6px}
+  h1{font-size:17px} .sub{display:none}
+  .chip{padding:3px 8px} .chip b{font-size:13px}
+  .board{grid-template-columns:minmax(260px,36%) 1fr;gap:8px}
+  .tools{gap:8px} .tool{width:44px;height:44px} .tool svg{width:21px;height:21px}
+  .dock{gap:14px;bottom:12px} .cardic{width:64px;height:64px} .cardic svg{width:34px;height:34px}
+  .armedline{bottom:112px}
+  .dial{width:48px;height:48px} .weektxt b{font-size:18px} .score b{font-size:30px}
+}
+/* Phone held sideways: little height. The header keeps only the chips, the other tools fold into Pause,
+   and the power-ups move to a column on the right. */
+@media (orientation:landscape) and (max-height:500px){
+  .wrap{padding:6px 8px;gap:4px}
+  header h1,.sub{display:none}
+  header{justify-content:flex-start}
+  .weekbar{height:4px}
+  .board{grid-template-columns:minmax(220px,32%) 1fr;gap:6px}
+  .card h2{display:none}
+  #bBoard,#bLog,#bRestart,#bTheme{display:none}
+  #planCard{padding-right:76px}                       /* a column of its own for Pause and the power-ups, clear of the plan */
+  header.hud{min-height:44px} .dial{width:40px;height:40px} .weektxt,.alabel,#rankChip,.score span{display:none}
+  .score b{font-size:24px} .slots i{width:20px;height:20px;font-size:12px}
+  .queue{min-height:64px;gap:6px} .qcard{padding:6px 8px;gap:3px} .qcard .qname,.qcard .rn{display:none} .qcard .qid{font-size:14px}
+  #secCard{padding:8px 10px;gap:6px} .qhead h2{font-size:12px}
+  .dock .pu{gap:2px} .dock .pu b{font-size:14px}
+  .dock{left:auto;right:8px;top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column;gap:8px}
+  .cardic{width:56px;height:56px} .cardic svg{width:30px;height:30px} .cardic .tip{display:none}
+  .armedline{left:8px;bottom:8px;transform:none;font-size:13px;padding:6px 12px}
+  .drawer{top:6px;max-height:calc(100% - 12px)}
+  .modal{padding:18px 20px} .modal h2{font-size:24px}
+}
+/* Phone upright, only after "Play upright anyway": the views stack and the page scrolls */
+@media (max-width:699px) and (orientation:portrait){
+  body{overflow:auto} .wrap{height:auto} .board{grid-template-columns:1fr} .sub{display:none}
+  header.hud{flex-wrap:wrap} .hudr{flex-wrap:wrap;gap:10px} .weektxt span,.alabel{display:none} .tools{flex-wrap:wrap}
+  #sec{height:auto;aspect-ratio:482/414} #plan{height:auto;aspect-ratio:1000/560}
+}
+/* Fingers instead of a mouse: every control at least 44 px */
+@media (pointer:coarse){
+  button{min-height:44px}
+  .tool{min-width:48px;min-height:48px}
+}
 </style>
 </head>
 <body>
@@ -217,43 +429,66 @@ svg .hit{fill:transparent}
     <symbol id="ic-t-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 13v4M8.5 20h7M10 17h4"/></symbol>
     <symbol id="ic-t-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
     <symbol id="ic-t-restart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+    <symbol id="ic-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="ic-t-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="ic-t-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></symbol>
   </defs>
 </svg>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>Mini MEP <small>Segment Routing · test build</small></h1>
-      <div class="sub">Fit services from the riser into the corridor void. Keep the crossings decided, not parked.</div>
+  <header class="hud">
+    <div class="hudl">
+      <svg class="dial" viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="24" class="dialbg"/><circle id="dialArc" cx="29" cy="29" r="24" class="dialarc" pathLength="100" stroke-dasharray="0 100" transform="rotate(-90 29 29)"/><text id="dialTxt" x="29" y="35" text-anchor="middle">W1</text></svg>
+      <div class="weektxt"><b id="weekN">Week 1</b><span id="weekLeft"></span></div>
+      <span class="chip" id="rankChip" hidden></span>
     </div>
-    <div class="chips" id="chips"></div>
+    <div class="hudr">
+      <div class="score"><b id="fitted">0</b><span>fitted</span></div>
+      <div class="areas"><span class="slots" id="slots" role="img" aria-label="Clash Areas: 0 of 3"></span><span class="alabel">Clash Areas</span></div>
+        <div class="tools">
+          <button class="tool" id="bBoard" aria-label="Leaderboard" title="Leaderboard" hidden><svg><use href="#ic-t-trophy"/></svg></button>
+          <button class="tool" id="bLog" aria-label="Decision log" title="Decision log"><svg><use href="#ic-t-log"/></svg><span class="n" id="logN"></span></button>
+          <button class="tool" id="bTheme" aria-label="Switch to dark theme" title="Light or dark"><svg><use href="#ic-t-moon"/></svg></button>
+          <button class="tool" id="bPause" aria-label="Pause" title="Pause (Space)"><svg><use href="#ic-t-pause"/></svg></button>
+          <button class="tool" id="bRestart" aria-label="Restart" title="Restart (R)"><svg><use href="#ic-t-restart"/></svg></button>
+        </div>
+    </div>
   </header>
-  <div class="weekbar" title="Week progress"><div id="weekfill"></div></div>
   <div class="board">
     <section class="card" id="secCard">
-      <h2>Section at the riser</h2>
-      <svg id="sec" aria-label="Corridor section"><g id="secMain"></g><g id="ghost" pointer-events="none"></g></svg>
+      <div class="qhead"><h2>Arriving at the riser</h2><span id="qcount"></span></div>
+      <div class="queue" id="queue"></div>
+      <svg id="sec" aria-label="Corridor section" preserveAspectRatio="xMidYMin meet"><g id="secMain"></g><g id="ghost" pointer-events="none"></g></svg>
     </section>
     <section class="card" id="planCard">
       <h2>Plan</h2>
       <svg id="plan" aria-label="Corridor plan"><g id="planMain"></g><g id="fx" pointer-events="none"></g></svg>
       <div class="hov" id="hov"></div>
-      <div class="tools">
-        <button class="tool" id="bBoard" aria-label="Leaderboard" title="Leaderboard" hidden><svg><use href="#ic-t-trophy"/></svg></button>
-        <button class="tool" id="bLog" aria-label="Decision log" title="Decision log"><svg><use href="#ic-t-log"/></svg><span class="n" id="logN"></span></button>
-        <button class="tool" id="bPause" aria-label="Pause" title="Pause (Space)"><svg><use href="#ic-t-pause"/></svg></button>
-        <button class="tool" id="bRestart" aria-label="Restart" title="Restart (R)"><svg><use href="#ic-t-restart"/></svg></button>
-      </div>
-      <div class="drawer" id="drawer"><h3>Decision log</h3><ol class="log" id="log"></ol></div>
-      <div class="drawer" id="board"><h3 id="boardTitle">Leaderboard</h3><ol class="lb" id="lb"></ol></div>
+      <div class="drawer" id="drawer"><button class="dclose" data-close aria-label="Close the decision log">×</button><h3>Decision log</h3><ol class="log" id="log"></ol></div>
+      <div class="drawer" id="board"><button class="dclose" data-close aria-label="Close the leaderboard">×</button><h3 id="boardTitle">Leaderboard</h3><ol class="lb" id="lb"></ol></div>
       <div class="armedline" id="armed"></div>
       <div class="dock" id="dock"></div>
     </section>
   </div>
 </div>
-<div class="gameover" id="cd" role="status"><span class="cdn" id="cdn">3</span></div>
+<div class="gameover" id="cd" role="status"><span class="cdn" id="cdn">3</span><small id="cdsub"></small></div>
 <div class="gameover" id="go" role="alert"><span class="g">GAME</span><span class="o">OVER</span><small>Click to continue</small></div>
 <div class="overlay" id="ov"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="peekbar" id="peekbar" role="status" hidden><span><b>Peeking · the game is paused</b><small id="peekline"></small></span><button type="button" class="primary" id="bPeekBack">Back to the meeting</button></div>
+<div class="rotate" id="rotate" role="alertdialog" aria-labelledby="rotH" hidden>
+  <svg width="180" height="180" viewBox="0 0 200 200" aria-hidden="true">
+    <rect x="72" y="40" width="56" height="100" rx="10" fill="none" stroke="var(--muted)" stroke-width="4" stroke-dasharray="6 6"/>
+    <rect x="46" y="98" width="108" height="60" rx="11" fill="var(--panel)" stroke="var(--ink)" stroke-width="5"/>
+    <path d="M70 116 H112 V108" fill="none" stroke="var(--t-chw)" stroke-width="5"/><path d="M70 134 H96 V108" fill="none" stroke="var(--t-acmv)" stroke-width="7"/>
+    <path d="M150 44 A62 62 0 0 1 172 96" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round"/>
+    <path d="M162 92 L173 100 L180 87" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <h2 id="rotH">Turn your phone sideways</h2>
+  <p id="rotP">The corridor needs the width. The game is paused and carries on when you rotate.</p>
+  <span class="live" id="rotLive" hidden><i></i>Live game: turn it now, the host starts soon</span>
+  <p>Rotation locked? Swipe down and unlock it in your phone's quick settings.</p>
+  <button type="button" class="link" id="bUpright">Play upright anyway (cramped)</button>
+</div>
 
 <script>
 'use strict';
@@ -261,7 +496,7 @@ svg .hit{fill:transparent}
 const CONFIG={
   lanes:5, layers:4, maxLayers:6,            // corridor grid: lanes sideways x layers high (the height budget)
   heightWeeks:[2,4],
-  version:'web-v0.5',
+  version:'web-v0.8',
   countdownMs:800,                            // each step of the 3-2-1-GO! countdown before a live start
   gameOverMs:2400,                            // how long GAME OVER shows before the stall dialog (0 skips it)
   round:{round:1,seed:1019},                  // ranked round used until the owner starts one online                          // the architect gives +100 mm at the start of these weeks, and never again
@@ -291,10 +526,10 @@ const TYPES={
   ELV: {name:'ELV tray',       trade:'elv', owner:'ELV',        w:1,band:'tray',   shape:'tray',weight:3}
 };
 const CARDS={
-  drop:   {name:'Drop to cross',desc:'One run dips under the other where it turns. Not for ducts or gravity drains.',target:'cx'},
+  drop:   {name:'Drop',         desc:'One run dips under the other where it turns. Not for ducts or gravity drains.',target:'cx'},
   reroute:{name:'Reroute',      desc:'Send one run through the next corridor instead.',target:'run'},
   defer:  {name:'Defer',        desc:'Park one crossing until the end of next week, with an owner.',target:'cx'},
-  height: {name:'+100 mm',      desc:'The architect agrees to a lower ceiling. One more layer, and you choose which band gets it.'}
+  height: {name:'Extra Layer',  desc:'The architect drops the ceiling 100 mm: one more layer in the section, and you agree which band gets it.'}
 };
 
 // ---------- State ----------
@@ -451,7 +686,7 @@ function bandNeed(b){
 // ---------- Cards ----------
 function arm(k){
   if(S.over||S.modal)return;
-  if(!S.hand[k]){toast(`No ${CARDS[k].name} cards left.`);return}
+  if(!S.hand[k]){toast(`No ${CARDS[k].name} left.`);return}
   S.armed=S.armed===k?null:k; S.sel=null; render();
 }
 function spend(k){S.hand[k]--;S.decisions++;S.used[k]++;S.armed=null}
@@ -492,7 +727,7 @@ function explainCx(key){
 
 // ---------- Clock ----------
 function tick(dt){
-  if(S.over||S.modal)return;
+  if(S.over||S.modal||ui.rotating)return;
   S.t+=dt;S.weekT+=dt;
   S.nextSpawn-=dt; if(S.nextSpawn<=0){S.nextSpawn+=S.spawnEvery;spawn();if(S.over)return}
   if(S.knockAt!=null&&S.weekT>=S.knockAt){S.knockAt=null;knockOn()}
@@ -545,65 +780,143 @@ function showGameOver(done){
 function addLog(kind,text){S.log.unshift({kind,text,week:S.week})}
 function toast(msg,warn,ms){const t=$('#toast');t.textContent=msg;t.className='toast show'+(warn?' warn':'');clearTimeout(toast.h);toast.h=setTimeout(()=>t.className='toast',ms||3200)}
 // The rules, shown on the start screen and in the live-game lobby
-function howTo(){
-  return `<p>Services keep arriving at the riser. Fit them into the corridor ceiling void, and keep the void working.</p>
-    <ol>
-      <li><b>Drag</b> a service from the riser into the section. The highlighted slots are its <b>height band</b>: trays at the top, ducts in the middle, pipes at the bottom.</li>
-      <li>Each run turns into its room at the door. Two runs in the <b>same layer cross</b> when the one nearer the rooms keeps going past the other's door. A red ring marks it. Hover the ring to see why.</li>
-      <li>A ring that runs out hardens into a <b>Clash Area</b>. Three of those and the project stalls.</li>
-    </ol>
-    <p>If moving runs can't fix a crossing, play a card. You start with one of each:</p>
-    <div class="hand0">${['drop','reroute','defer'].map((k,i)=>cardRow(k,i+1)).join('')}</div>
-    <div class="keys">Keys: 1 / 2 / 3 play a card · Esc cancels · Space pauses</div>`;
+// How to play in three pictures (lobby and intro)
+function howCards(){
+  return `<div class="how">
+    <div><svg viewBox="0 0 200 110" role="img" aria-label="A duct dropped into a green slot in the section grid">
+      <g style="fill:var(--corr);stroke:var(--line)"><rect x="40" y="10" width="40" height="30"/><rect x="80" y="10" width="40" height="30"/><rect x="120" y="10" width="40" height="30"/><rect x="40" y="70" width="40" height="30"/><rect x="80" y="70" width="40" height="30"/><rect x="120" y="70" width="40" height="30"/></g>
+      <g style="fill:var(--valid);stroke:var(--ok)"><rect x="40" y="40" width="40" height="30"/><rect x="80" y="40" width="40" height="30"/><rect x="120" y="40" width="40" height="30"/></g>
+      <rect x="84" y="45" width="72" height="20" rx="3" style="fill:var(--t-acmv)"/></svg>
+      <b>1 · Fit it in its band</b><span>Drag each arrival into a green slot, or tap it, then tap a slot. Pipes low, ducts middle, trays high.</span></div>
+    <div><svg viewBox="0 0 200 110" role="img" aria-label="Two runs on the same level cross where one turns into a room">
+      <line x1="10" y1="12" x2="190" y2="12" style="stroke:var(--ink)" stroke-width="2.5"/>
+      <path d="M10 50 H180 V12" fill="none" style="stroke:var(--t-chw)" stroke-width="8"/><path d="M10 82 H90 V12" fill="none" style="stroke:var(--t-ps)" stroke-width="8"/>
+      <circle cx="90" cy="50" r="14" style="fill:var(--panel);stroke:var(--danger)" stroke-width="4"/></svg>
+      <b>2 · Watch the crossings</b><span>Two runs on the same level that turn across each other must cross. A red ring marks it.</span></div>
+    <div><svg viewBox="0 0 200 110" role="img" aria-label="A crossing timer next to the power-ups">
+      <circle cx="40" cy="55" r="26" style="fill:var(--panel);stroke:var(--soft)" stroke-width="7"/>
+      <path d="M40 29 A26 26 0 1 1 17 67" fill="none" style="stroke:var(--danger)" stroke-width="7" stroke-linecap="round"/>
+      <g style="fill:var(--panel);stroke:var(--line)" stroke-width="2"><circle cx="105" cy="55" r="20"/><circle cx="150" cy="55" r="20"/></g>
+      <path d="M93 56h6l4 8h6l4-8h6" fill="none" style="stroke:var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M140 62c0-12 20-12 20 0" fill="none" style="stroke:var(--ink)" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <b>3 · Decide in time</b><span>Move a run, or use a power-up: Drop, Reroute or Defer. Left alone, a crossing becomes a Clash Area. Three ends the project.</span></div>
+  </div>`;
 }
+// The landing corridor: three runs draw into three rooms, two cross, and the crossing is decided. 9 s loop.
+const LANDING_SVG=`<svg class="scene" viewBox="0 0 760 640" role="img" aria-label="A corridor drawing itself: three services run from the riser into three rooms, two of them cross, and the crossing is decided">
+  <rect x="260" y="70" width="96" height="96" rx="12" style="fill:var(--tile-shadow)"/><rect x="250" y="60" width="96" height="96" rx="12" style="fill:var(--tile)"/>
+  <rect x="440" y="70" width="96" height="96" rx="12" style="fill:var(--tile-shadow)"/><rect x="430" y="60" width="96" height="96" rx="12" style="fill:var(--tile)"/>
+  <rect x="620" y="70" width="96" height="96" rx="12" style="fill:var(--tile-shadow)"/><rect x="610" y="60" width="96" height="96" rx="12" style="fill:var(--tile)"/>
+  <use href="#ic-bed" x="278" y="88" width="40" height="40" style="color:var(--ink)"/><use href="#ic-cross" x="458" y="88" width="40" height="40" style="color:var(--ink)"/><use href="#ic-drop" x="638" y="88" width="40" height="40" style="color:var(--ink)"/>
+  <rect x="58" y="372" width="96" height="190" rx="12" style="fill:var(--tile-shadow)"/><rect x="48" y="362" width="96" height="190" rx="12" style="fill:var(--riser)"/>
+  <text x="96" y="462" text-anchor="middle" style="fill:var(--ink);font:600 15px var(--mono)">RISER</text>
+  <g id="lsRuns" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path id="lsE" d="M144 400 H298 V166" style="stroke:var(--t-elv)" stroke-width="8" pathLength="100" stroke-dasharray="100 100"/>
+    <path id="lsC" d="M144 430 H658 V166" style="stroke:var(--t-chw)" stroke-width="10" pathLength="100" stroke-dasharray="100 100"/>
+    <path id="lsD" d="M144 478 H478 V166" style="stroke:var(--t-acmv)" stroke-width="22" pathLength="100" stroke-dasharray="100 100"/>
+  </g>
+  <g id="lsRing" opacity="0"><circle cx="478" cy="430" r="40" fill="none" style="stroke:var(--danger)" stroke-width="3" opacity=".35"/><circle cx="478" cy="430" r="26" style="fill:var(--tile);stroke:var(--soft)" stroke-width="7"/>
+    <circle id="lsArc" cx="478" cy="430" r="26" fill="none" style="stroke:var(--danger)" stroke-width="7" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 478 430)"/></g>
+  <g id="lsCheck" opacity="0"><circle cx="478" cy="430" r="26" style="fill:var(--tile);stroke:var(--ok)" stroke-width="5"/><path d="M466 431l8 8 14-17" fill="none" style="stroke:var(--ok)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></g>
+</svg>`;
+const LOOP=9,seg01=(p,a,b)=>Math.max(0,Math.min(1,(p-a)/(b-a)));
+function drawLanding(){
+  if(!$('#lsRuns'))return;
+  const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const p=still?0.75:(((performance.now()-ui.land0)/1000)%LOOP)/LOOP,fade=p<0.9?1:p<0.97?1-(p-0.9)/0.07:0;
+  [['#lsE',0.02,0.14],['#lsC',0.14,0.29],['#lsD',0.29,0.44]].forEach(([id,a,b])=>$(id).setAttribute('stroke-dashoffset',String(100*(1-seg01(p,a,b)))));
+  $('#lsRuns').setAttribute('opacity',fade);$('#lsRing').setAttribute('opacity',p>=0.45&&p<0.62?1:0);
+  $('#lsArc').setAttribute('stroke-dashoffset',String(100*seg01(p,0.46,0.62)));$('#lsCheck').setAttribute('opacity',p>=0.62?fade:0);
+}
+function startLanding(){
+  if(ui.landRaf)return;
+  const step=()=>{if(S.modal!=='landing'){ui.landRaf=0;return}drawLanding();ui.landRaf=requestAnimationFrame(step)};
+  ui.landRaf=requestAnimationFrame(step);
+}
+// Top bar of the join screens: brand (back to the start), steps, theme toggle
+function scrBar(step){
+  const st=step?`<ol class="steps">${['PIN','Nickname','Lobby'].map((t,i)=>`<li class="${i+1===step?'on':i+1<step?'done':''}">${i+1} ${t}</li>`).join('')}</ol>`:'';
+  return `<div class="scrbar"><button class="brand" data-act="home" aria-label="Back to the start">Mini MEP<i class="brandsq"></i></button>
+    <div class="right">${st}<button class="tool" data-act="theme" aria-label="${isDark()?'Switch to light theme':'Switch to dark theme'}"><svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg></button></div></div>`;
+}
+const IDEAS=['DuctTape','PipeDream','TrayRunner','SoffitSam','RiserRita','Hangers','CableGuy','SleeveSam'];
+const SCREENS=new Set(['landing','join','nick','lobby','intro','closed']);
 function cardRow(k,key){
   return `<div class="cardrow"><span class="ci"><svg><use href="#ic-c-${k}"/></svg></span><b>${key?key+'. ':''}${CARDS[k].name}</b><span>${CARDS[k].desc}</span></div>`;
 }
 function showModal(kind){
   S.modal=kind; const m=$('#modal'); let h='';
-  if(kind==='intro'){
-    h=`<h2>Mini MEP · Segment Routing</h2>
-    ${NET.joined?`<p class="pinline">Game PIN <b>${NET.pin}</b> · playing as <b>${esc(NET.nick)}</b>. Everyone in this game gets the same arrivals.</p>`:''}
-    ${howTo()}
-    ${NET.expected&&!NET.joined?'<div class="bar" style="margin-bottom:14px"><button data-act="leave">Join a game with a PIN</button></div>':''}
-    <button class="primary" data-act="start">${NET.joined?'Start ranked game':(NET.expected?'Start practice':'Start')}</button>`;
+  if(kind==='landing'){
+    if(!ui.land0)ui.land0=performance.now();
+    const menu=ui.landMenu==='choose'
+      ?'<button data-act="topin">With a game PIN</button><button data-act="solo">On my own</button><button class="back" data-act="landback">← Back</button>'
+      :'<button data-act="play">Play</button>';
+    h=`<div class="land"><div><h1>Mini MEP<i class="brandsq"></i></h1><p class="tagline">Fit the services. Decide the crossings.</p>
+      <nav class="lmenu" aria-label="Start">${menu}</nav></div>${LANDING_SVG}<p class="foot">A puzzle about the ceiling above a hospital corridor. Everything in it is fictional.</p></div>`;
+  }else if(kind==='intro'){
+    const ranked=NET.joined;
+    h=`<div class="scr">${scrBar(ranked?3:0)}<div class="scard wide">
+      <div>${ranked?`<p class="eyebrow">GAME ${NET.pin} · PLAYING AS ${esc(NET.nick).toUpperCase()}</p>`:''}<h2>${ranked?'Ready when you are':'Practice'}</h2>
+        <p class="muted" style="margin-top:8px">${ranked?'Everyone in this game gets the same arrivals. Your first stall is your score.':'Nothing is saved online. Play as often as you like.'}</p></div>
+      ${howCards()}
+      <p class="muted" style="font-size:15px">Keys: 1 / 2 / 3 use a power-up · Esc cancels · Space pauses</p>
+      <div class="bar"><button class="primary big" data-act="start">${ranked?'Start ranked game':'Start practice'}</button>${ranked?'':'<button data-act="home">Back to the start</button>'}</div>
+    </div></div>`;
   }else if(kind==='join'){
-    h=`<h2>Mini MEP</h2>
-    <p>Enter the game PIN shown on the host's screen.</p>
-    <div class="nickrow"><label for="pin">Game PIN</label><input id="pin" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="000000" value="${esc(NET.pin||PARAMS.get('pin')||'')}"></div>
-    <div class="bar"><button class="primary" data-act="pin" ${NET.ready?'':'disabled'}>${NET.ready?'Enter':'Connecting…'}</button><button data-act="practice">Practice without a PIN</button></div>`;
+    h=`<div class="scr">${scrBar(1)}<div class="scard">
+      <div><h2>Join a game</h2><p class="muted" style="margin-top:8px">Type the 6-digit PIN on the host's screen.</p></div>
+      <label for="pin">Game PIN</label>
+      <div class="pinbox" id="pinbox"><span></span><span></span><span></span><span></span><span></span><span></span>
+        <input id="pin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="6" value="${esc(NET.pin||PARAMS.get('pin')||'')}"></div>
+      <button class="primary big" data-act="pin" ${NET.ready?'':'disabled'}>${NET.ready?'Enter':'Connecting…'}</button>
+      <button class="linkbtn" data-act="practice">No PIN? Practice on your own</button>
+    </div></div>`;
   }else if(kind==='nick'){
-    const live=NET.session&&NET.session.mode==='live';
-    h=`<h2>Game PIN <span class="mono">${NET.pin}</span></h2>
-    <p>${live?'Live game: everyone starts together when the host presses Start.':'Open round: play whenever you like. Your best score counts.'}</p>
-    <div class="nickrow"><label for="nick">Nickname</label>
+    const live=NET.session&&NET.session.mode==='live',ideas=IDEAS.slice().sort(()=>Math.random()-0.5).slice(0,4);
+    h=`<div class="scr">${scrBar(2)}<div class="scard">
+      <div><p class="eyebrow">GAME ${NET.pin} · ${live?'LIVE':'OPEN ROUND'}</p><h2>Pick a nickname</h2>
+        <p class="muted" style="margin-top:8px">${live?'Everyone starts together when the host presses Start.':'Play whenever you like. Your best score counts.'} Others see your nickname on the leaderboard.</p></div>
+      <label for="nick">Nickname</label>
       <input id="nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="e.g. DuctTape" value="${esc(NET.nick)}">
-      <span>Others see it on the leaderboard.</span></div>
-    <div class="bar"><button class="primary" data-act="join">OK, go!</button><button data-act="leave">Different PIN</button></div>`;
+      <div class="ideas"><span class="muted">Ideas:</span>${ideas.map(n=>`<button data-act="idea" data-n="${n}">${n}</button>`).join('')}</div>
+      <div class="bar"><button class="primary big" data-act="join" style="flex:1">I'm in</button><button data-act="leave">Different PIN</button></div>
+    </div></div>`;
   }else if(kind==='lobby'){
-    const chips=lobbyChips();ui.sig['#lobby']=chips;
-    h=`<h2>You're in, ${esc(NET.nick)}!</h2>
-    <p>Look for your nickname on the host's screen. The game starts when the host presses Start.</p>
-    <div class="lobby" id="lobby">${chips}</div>
-    <details open><summary>How to play while you wait</summary>${howTo()}</details>
-    <div class="bar"><button data-act="leave">Leave this game</button></div>`;
+    const chips=lobbyChips(),n=NET.players.length;ui.sig['#lobby']=chips;ui.sig['#lobbyN']=lobbyCount();
+    h=`<div class="scr">${scrBar(3)}<div class="scard wide">
+      <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px">
+        <div><h2>You're in, ${esc(NET.nick)}!</h2><p class="muted" style="margin-top:6px">Waiting for the host to press Start · <b id="lobbyN">${lobbyCount()}</b></p></div>
+        <button data-act="leave">Leave this game</button></div>
+      <div class="lobby" id="lobby">${chips}</div>
+      <h3 style="margin:0;font-size:22px">How to play</h3>${howCards()}
+    </div></div>`;
   }else if(kind==='closed'){
-    h=`<h2>Game <span class="mono">${NET.pin}</span> has ended</h2>
-    <p>Thanks for playing. The final leaderboard is behind the trophy, top right.</p>
-    <div class="bar"><button class="primary" data-act="leave">Join another game</button><button data-act="practice">Practice</button></div>`;
+    const st=standings().slice(0,8);
+    h=`<div class="scr">${scrBar(0)}<div class="scard">
+      <div><h2>Game <span class="mono">${NET.pin}</span> has ended</h2><p class="muted" style="margin-top:8px">Thanks for playing. Final standings:</p></div>
+      ${st.length?`<ol class="closedlb">${st.map((p,i)=>`<li class="${p.id===(NET.api&&NET.api.uid)?'me':''}"><span class="rk">${i+1}</span><span>${esc(p.nick)}</span><span class="sc">${p.fitted}</span></li>`).join('')}</ol>`:'<p class="muted">No scores were saved in this game.</p>'}
+      <div class="bar"><button class="primary" data-act="leave">Back to the start</button><button data-act="practice">Practice</button></div>
+    </div></div>`;
   }else if(kind==='week'){
-    const w=S.week;
-    h=`<h2>End of week ${w} · coordination meeting</h2>
-    <p>${S.connected} services fitted so far and ${S.decisions} decisions named. Pick one thing to take away from the meeting.</p>
-    <div class="offers">${S.offer.map(k=>`<button data-act="offer" data-k="${k}">${cardRow(k)}</button>`).join('')}</div>`;
+    const w=S.week,a=S.areas.length;
+    h=`<div class="meet"><p class="eyebrow">COORDINATION MEETING</p><h2>End of week ${w}</h2>
+      <p class="meetsub">${S.connected} services fitted · ${S.decisions} decisions named · ${a} Clash Area${a===1?'':'s'}</p>
+      <div class="pucards">${S.offer.map(k=>`<button class="pucard" data-act="offer" data-k="${k}"><span class="ci"><svg><use href="#ic-c-${k}"/></svg></span><b>${CARDS[k].name}</b><span>${CARDS[k].desc}</span><small>You have ${S.hand[k]}</small></button>`).join('')}</div>
+      <div class="meetbar"><button class="peekbtn" data-act="peek"><svg><use href="#ic-eye"/></svg>Peek at the corridor</button><span>or hold P · pick one to take back to site</span></div></div>`;
   }else if(kind==='height'){
-    const opt=b=>{const n=bandNeed(b);return `<button data-act="hband" data-b="${b}"><div class="cardrow"><span class="ci"><svg><use href="#ic-c-height"/></svg></span><b>${BAND_NAME[b][0].toUpperCase()+BAND_NAME[b].slice(1)}</b><span>${n.waiting} waiting · ${n.free} free slot${n.free===1?'':'s'}</span></div></button>`};
-    const last=S.week+1===Math.max(...CONFIG.heightWeeks);
-    h=`<h2>Week ${S.week+1} · +100 mm · who gets it?</h2>
-    <p>The architect lowers the ceiling 100 mm. That's one more layer. Agree which band it goes to.${last?' <b>This is the last height you will get.</b>':''}</p>
-    <div class="offers three">${['pipe','duct','tray'].map(opt).join('')}</div>`;
+    const lastWk=Math.max(...CONFIG.heightWeeks),last=S.week+1===lastWk;
+    const card=b=>{const n=bandNeed(b),tag=n.free===0?['Full','bad']:n.waiting>n.free?['Tight','bad']:n.waiting>0?['OK','mid']:['Plenty','good'],nm=BAND_NAME[b];
+      return `<button class="bandcard" data-act="hband" data-b="${b}"><span class="bt"><b>${nm[0].toUpperCase()+nm.slice(1)}</b><span class="btag ${tag[1]}">${tag[0]}</span></span>
+        <span class="nums"><span class="w"><b>${n.waiting}</b>waiting</span><span class="f"><b>${n.free}</b>free slot${n.free===1?'':'s'}</span></span>
+        <p>${n.free===0?`Every ${nm.slice(0,-1)} slot is taken.`:n.waiting?`${n.waiting} ${n.waiting===1?'is':'are'} waiting at the riser.`:'Nothing waiting for this band.'}</p></button>`};
+    h=`<div class="meet"><p class="eyebrow">WEEK ${S.week+1} · A GIFT FROM THE ARCHITECT</p><h2>Extra Layer</h2>
+      <p class="arch">"Feeling generous today. I'll drop the ceiling 100 mm, so you get one more layer. Don't tell the client."</p>
+      <p class="meetsub">Agree which band gets it. ${last?'This is the last one.':`The next one comes in week ${lastWk}, and that's the last.`}</p>
+      <div class="bandcards">${['pipe','duct','tray'].map(card).join('')}</div>
+      <div class="meetbar"><button class="peekbtn" data-act="peek"><svg><use href="#ic-eye"/></svg>Peek at the corridor</button><span>or hold P</span></div></div>`;
   }else if(kind==='paused'){
-    h=`<h2>Paused</h2><p>Press Space or Resume to carry on.</p><button class="primary" data-act="resume">Resume</button>`;
+    h=`<h2>Paused</h2><p>Press Space or Resume to carry on.</p>
+    <div class="pausebar"><button class="primary" data-act="resume">Resume</button><button data-act="log">Decision log</button>${NET.pin?'<button data-act="board">Leaderboard</button>':''}<button data-act="theme">${isDark()?'Light theme':'Dark theme'}</button><button data-act="restart">Restart</button></div>`;
   }else if(kind==='over'){
     const o=S.over,best=o.prevBest;
     const why=o.reason==='full'
@@ -620,10 +933,27 @@ function showModal(kind){
         <div class="bar"><button class="primary" data-act="chance">One more chance</button><button data-act="again">Start over</button></div>`
       :`<button class="primary" data-act="again">Play again</button>`}`;
   }
-  m.innerHTML=h; $('#ov').classList.add('show');
-  const f=m.querySelector('#pin')||m.querySelector('#nick')||m.querySelector('button');if(f)f.focus();
+  m.innerHTML=h; $('#ov').classList.toggle('screen',SCREENS.has(kind)); $('#ov').classList.toggle('meeting',kind==='week'||kind==='height'); $('#ov').classList.add('show');
+  const f=m.querySelector('#pin')||m.querySelector('#nick')||m.querySelector('.lmenu button')||m.querySelector('button');if(f)f.focus();
+  if(kind==='join')pinBoxes();
+  if(kind==='landing'){drawLanding();startLanding()}
 }
-function hideModal(){S.modal=null;$('#ov').classList.remove('show')}
+function hideModal(){S.modal=null;$('#ov').classList.remove('show','screen','meeting','peeking');ui.peek=false;$('#peekbar').hidden=true}
+// Peek at the corridor during the week meeting: the choice hides, the paused board shows, and a bar leads back
+function setPeek(on){
+  if(on&&S.modal!=='week'&&S.modal!=='height')return;
+  ui.peek=!!on;$('#ov').classList.toggle('peeking',ui.peek);$('#peekbar').hidden=!ui.peek;
+  if(ui.peek){$('#peekline').textContent=S.modal==='height'?'Choosing a band for the Extra Layer: pipes, ducts or trays':'Choosing a power-up to take back to site';render()}
+  else{const f=$('#modal button');if(f)f.focus()}
+}
+$('#bPeekBack').addEventListener('click',()=>setPeek(false));
+// Six PIN boxes over one real input: the phone shows its number pad, and paste works
+function pinBoxes(){
+  const i=$('#pin');if(!i)return;const v=i.value.replace(/\D/g,'').slice(0,6);if(i.value!==v)i.value=v;
+  document.querySelectorAll('#pinbox span').forEach((b,k)=>{b.textContent=v[k]||'';b.classList.toggle('cur',document.activeElement===i&&k===Math.min(v.length,5))});
+}
+$('#modal').addEventListener('input',e=>{if(e.target.id==='pin')pinBoxes()});
+$('#modal').addEventListener('focusin',pinBoxes);$('#modal').addEventListener('focusout',()=>setTimeout(pinBoxes));
 $('#modal').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act;
@@ -631,7 +961,21 @@ $('#modal').addEventListener('click',e=>{
   if(a==='pin'){submitPin();return}
   if(a==='join'){joinWithNick();return}
   if(a==='practice'){NET.practice=true;newGame();return}
+  if(a==='peek'){setPeek(true);return}
   if(a==='leave'){leaveGame();return}
+  if(a==='play'){ui.landMenu='choose';showModal('landing');return}
+  if(a==='landback'){ui.landMenu='root';showModal('landing');return}
+  if(a==='solo'){NET.practice=true;newGame();return}
+  if(a==='topin'){
+    if(!NET.expected){toast("Online games aren't set up on this copy. Pick On my own.",true,4000);return}
+    if(NET.failed){toast("Can't reach the game server right now. Pick On my own.",true,4000);return}
+    showModal('join');return}
+  if(a==='home'){if(NET.pin||NET.practice)leaveGame();else{ui.landMenu='root';showModal('landing')}return}
+  if(a==='idea'){const i=$('#nick');if(i){i.value=b.dataset.n;i.focus()}return}
+  // From the pause menu: a drawer opens and the game stays paused until it closes
+  if(a==='log'||a==='board'){ui.logOpen=a==='log';ui.boardOpen=a==='board';if(a==='board')renderBoard();$('#ov').classList.remove('show');S.modal='drawer';renderPanels();return}
+  if(a==='theme'){toggleTheme();if(S.modal==='paused')showModal('paused');else{b.innerHTML=`<svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg>`;b.setAttribute('aria-label',isDark()?'Switch to light theme':'Switch to dark theme')}return}
+  if(a==='restart'){newGame();return}
   if(a==='resume')hideModal();
   else if(a==='cmt'){sendComment();return}
   else if(a==='offer')takeOffer(b.dataset.k);
@@ -660,7 +1004,7 @@ function oneMoreChance(){
 }
 
 // ---------- Render: section ----------
-const CELL=60,SX=86,SY=124;
+const CELL=60,SX=86,SY=40;
 function shapeSVG(r,x,y,extra=''){
   // x,y = top-left of the run's cells; width spans its lanes
   const t=TYPES[r.type],w=W(r)*CELL,fill=`var(--t-${t.trade})`;let s;
@@ -669,30 +1013,29 @@ function shapeSVG(r,x,y,extra=''){
   else s=`<circle class="shape" cx="${x+w/2}" cy="${y+CELL/2}" r="13" fill="${fill}"/>`;
   return s+`<text class="rid" x="${x+w/2}" y="${y+CELL/2+(t.shape==='pipe'?24:4)}" text-anchor="middle">${r.id}${r.fixed?' ⏚':''}</text>`+extra;
 }
+// Arrivals: bigger cards above the section; drag one onto the grid, or tap it and then tap a green slot
+function renderQueue(){
+  const q=queue(),full=q.length>=CONFIG.queueMax;
+  setHTML('#qcount',`${q.length} / ${CONFIG.queueMax}${full?' full':''}`);$('#qcount').classList.toggle('full',full);
+  let h='';
+  for(let i=0;i<CONFIG.queueMax;i++){
+    const r=q[i];
+    if(!r){h+=`<div class="qslot">${i===q.length?'Next one is on its way':''}</div>`;continue}
+    const t=TYPES[r.type],nofit=!validSlots(r).length,sw=t.shape==='pipe'?'swp':t.shape==='duct'?'swd':'swt',pop=fresh(r.born,.6),pulse=fresh(r.born,3);
+    h+=`<div class="qcard${pop?' pop':''}${nofit?' nofit':''}${S.sel===r.id?' sel':''}${drag&&drag.id===r.id?' dragging':''}" data-id="${r.id}" role="button" tabindex="0" aria-label="${r.id}, ${t.name}, to ${room(r.door)}${nofit?', no slot fits':''}" style="${pop?ago(r.born):''}">
+      ${pulse?`<i class="qpulse" style="${ago(r.born)}"></i>`:''}<span class="qid"><i class="${sw}" style="background:var(--t-${t.trade})"></i>${r.id}</span>
+      <span class="qroom"><svg aria-hidden="true"><use href="#ic-${CONFIG.rooms[r.door].icon}"/></svg><span class="rn">${room(r.door)}</span></span>
+      <span class="qname">${nofit?'No slot fits':t.name}</span></div>`;
+  }
+  setHTML('#queue',h);
+}
 function renderSec(){
-  const svg=$('#sec'),N=S.lanes,L=S.L,gw=N*CELL,gh=L*CELL,Wd=SX+gw+96,Ht=SY+gh+50;
+  const svg=$('#sec'),N=S.lanes,L=S.L,gw=N*CELL,gh=L*CELL,Wd=SX+gw+96,Ht=SY+gh+74;
   svg.setAttribute('viewBox',`0 0 ${Wd} ${Ht}`);
   const active=drag?byId(drag.id):S.sel?byId(S.sel):null;
   const cover=new Set();
   if(active)for(const s of validSlots(active))for(let i=s.lane;i<s.lane+W(active);i++)cover.add(i+','+s.layer);
   let h=`<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="var(--beam)"/><line x1="0" y1="0" x2="0" y2="8" stroke="var(--panel)" stroke-width="2"/></pattern></defs>`;
-  // Riser inbox
-  const q=queue();
-  h+=`<text class="lbl" x="8" y="16">RISER · WAITING ${q.length}/${CONFIG.queueMax}</text>`;
-  for(let i=0;i<CONFIG.queueMax;i++)h+=`<rect class="slot" x="${8+i*96}" y="26" width="88" height="62" rx="8"/>`;
-  q.forEach((r,i)=>{
-    const x=8+i*96,y=26,t=TYPES[r.type],nofit=!validSlots(r).length;
-    const sw=t.shape==='pipe'?`<circle cx="20" cy="20" r="9" fill="var(--t-${t.trade})"/>`:t.shape==='duct'?`<rect x="8" y="12" width="${W(r)*12}" height="16" rx="2" fill="var(--t-${t.trade})"/>`:`<rect x="8" y="16" width="${W(r)*12}" height="8" fill="var(--t-${t.trade})"/>`;
-    // New arrivals pop in and pulse, like a new house in Mini Motorways
-    const pulse=fresh(r.born,3)?`<rect class="pulse" width="88" height="62" rx="8" style="${ago(r.born)}"/>`:'';
-    h+=`<g transform="translate(${x},${y})">${pulse}<g class="tok${fresh(r.born,.6)?' pop':''}${nofit?' nofit':''}${S.sel===r.id?' sel':''}${drag&&drag.id===r.id?' dragging':''}" data-id="${r.id}" style="${fresh(r.born,.6)?ago(r.born):''}">
-      <rect class="tokbg" width="88" height="62" rx="8"/>${sw}
-      <text class="rid" x="${t.shape==='pipe'?36:W(r)*12+14}" y="24">${r.id}</text>
-      <use href="#ic-${CONFIG.rooms[r.door].icon}" class="ric hot" x="7" y="33" width="14" height="14"/>
-      <text class="lbl" x="24" y="44">${room(r.door)}</text>
-      <text class="lbl" x="8" y="57" style="font-size:9.5px">${nofit?'no slot fits':t.name}</text></g></g>`;
-  });
-  if(!q.length)h+=`<text class="lbl" x="${8+CONFIG.queueMax*96}" y="60">Next one is on its way.</text>`;
   // Beam soffit
   h+=`<rect x="${SX-10}" y="${SY-20}" width="${gw+20}" height="16" fill="url(#hatch)"/><text class="lbl" x="${SX+gw+16}" y="${SY-8}">beam soffit</text>`;
   // Cells
@@ -716,6 +1059,8 @@ function renderSec(){
   // Service floor
   h+=`<line class="floorline" x1="${SX-10}" x2="${SX+gw+10}" y1="${SY+gh}" y2="${SY+gh}"/><text class="lbl" x="${SX+gw+16}" y="${SY+gh+4}">service floor</text>`;
   h+=`<text class="lbl" x="${SX}" y="${SY+gh+22}">◀ room side</text><text class="lbl" x="${SX+gw}" y="${SY+gh+22}" text-anchor="end">open side ▶</text>`;
+  if(active)h+=`<text class="hint" x="${SX}" y="${SY+gh+56}">${validSlots(active).length?`Green = ${active.id} fits here. Drop it there.`:`No slot fits ${active.id}.`}</text>`;
+  renderQueue();
   $('#secMain').innerHTML=h;
 }
 let drag=null;
@@ -755,9 +1100,33 @@ sec.addEventListener('pointerup',e=>{
     const c=cellAt(p,r);
     if(c&&canPlace(r,c.lane,c.layer)){if(!(r.placed&&r.lane===c.lane&&r.layer===c.layer))place(r,c.lane,c.layer);else render()}
     else{if(c&&!(r.placed&&r.lane===c.lane&&r.layer===c.layer))toast(placeMsg(r,c));render()}
-  }else{S.sel=S.sel===r.id?null:r.id;render()}
+  }else{
+    S.sel=S.sel===r.id?null:r.id;
+    if(S.sel&&e.pointerType!=='mouse'&&!S.seen.tapHint){S.seen.tapHint=1;toast('Now tap a green slot to place it.')}
+    render();
+  }
 });
 sec.addEventListener('pointercancel',()=>{drag=null;$('#ghost').innerHTML='';render()});
+const qEl=$('#queue');
+qEl.addEventListener('pointerdown',e=>{
+  if(S.over||S.modal)return;
+  const el=e.target.closest('.qcard'),r=el&&byId(el.dataset.id);if(!r)return;
+  if(S.armed){if(S.armed==='reroute')applyRun(r);else toast('Pick a crossing: a ring in the plan.');return}
+  e.preventDefault();
+  drag={id:r.id,cx:e.clientX,cy:e.clientY,moved:false};
+  addEventListener('pointermove',qMove);addEventListener('pointerup',qUp,{once:true});addEventListener('pointercancel',qCancel,{once:true});
+  render();
+});
+qEl.addEventListener('keydown',e=>{const el=e.target.closest('.qcard');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();e.stopPropagation();S.sel=S.sel===el.dataset.id?null:el.dataset.id;render()}});
+function qMove(e){if(!drag)return;if(Math.hypot(e.clientX-drag.cx,e.clientY-drag.cy)>6)drag.moved=true;if(drag.moved)drawGhost(byId(drag.id),svgPt(sec,e))}
+function qCancel(){removeEventListener('pointermove',qMove);removeEventListener('pointerup',qUp);drag=null;$('#ghost').innerHTML='';render()}
+function qUp(e){
+  removeEventListener('pointermove',qMove);removeEventListener('pointercancel',qCancel);
+  if(!drag)return;const r=byId(drag.id),moved=drag.moved;drag=null;$('#ghost').innerHTML='';
+  if(!r){render();return}
+  if(moved){const c=cellAt(svgPt(sec,e),r);if(c&&canPlace(r,c.lane,c.layer))place(r,c.lane,c.layer);else{if(c)toast(placeMsg(r,c));render()}}
+  else{S.sel=S.sel===r.id?null:r.id;if(S.sel&&e.pointerType!=='mouse'&&!S.seen.tapHint){S.seen.tapHint=1;toast('Now tap a green slot to place it.')}render()}
+}
 
 // ---------- Render: plan ----------
 // The plan stretches to fill its panel: the viewBox width is fixed at 1000, its height follows the panel,
@@ -777,6 +1146,12 @@ function layoutPlan(){
   ROOM_Y=Math.max(70,(VH-(RH+S.lanes*LANE_H+30)-140)/2+40);
   WALL=ROOM_Y+RH;
   return VH;
+}
+// While Drop or Defer is armed, crossings it can work on light up and the others grey out
+function armTarget(c,st){
+  if(S.armed!=='drop'&&S.armed!=='defer')return'';
+  const ok=S.armed==='drop'?!st.resolved&&[c.turn,c.thru].some(r=>!TYPES[r.type].duct&&!TYPES[r.type].gravity):!st.resolved&&!st.defer;
+  return ok?' target':' nope';
 }
 function renderPlan(){
   const svg=$('#plan'),Ht=layoutPlan(),bot=WALL+S.lanes*LANE_H;
@@ -805,7 +1180,7 @@ function renderPlan(){
   for(const c of S.list){
     const st=S.cx[c.key];if(!st)continue;
     const x=doorX(c.turn.door)+lDx(c.turn.layer),y=laneY(c.thru),ids=`${c.turn.id},${c.thru.id}`;
-    if(st.area)h+=`<g class="mk area" data-cx="${c.key}" data-ids="${ids}"><circle class="ring" cx="${x}" cy="${y}" r="26"/><text x="${x}" y="${y-5}">CLASH</text><text x="${x}" y="${y+7}">AREA</text></g>`;
+    if(st.area)h+=`<g class="mk area" data-cx="${c.key}" data-ids="${ids}"><rect class="sq" x="${x-20}" y="${y-20}" width="40" height="40" rx="8"/><path class="x" d="M${x-8},${y-8}L${x+8},${y+8}M${x+8},${y-8}L${x-8},${y+8}"/></g>`;
     else if(st.resolved){
       // Drafting convention: the run that drops is dashed (hidden) where it passes under the other
       if(st.dropped){
@@ -817,12 +1192,21 @@ function renderPlan(){
       }
       h+=`<g class="mk resolved" data-cx="${c.key}" data-ids="${ids}"><circle class="ring" cx="${x+16}" cy="${y-16}" r="8"/><text x="${x+16}" y="${y-16}">${st.dropped?'↓':'✓'}</text></g>`;
     }
-    else if(st.defer)h+=`<g class="mk deferred" data-cx="${c.key}" data-ids="${ids}"><circle class="ring" cx="${x}" cy="${y}" r="13"/><text x="${x}" y="${y}">W${st.defer}</text></g>`;
+    else if(st.defer){const tg=armTarget(c,st);h+=`<g class="mk deferred${tg}" data-cx="${c.key}" data-ids="${ids}">${tg===' target'?`<circle class="halo" cx="${x}" cy="${y}" r="27"/>`:''}<circle class="ring" cx="${x}" cy="${y}" r="17"/><text x="${x}" y="${y}" style="font-size:13px">W${st.defer}</text></g>
+      <g class="dtag" pointer-events="none"><text x="${x+24}" y="${y-3}">Deferred · ${TYPES[c.turn.type].owner}</text><text x="${x+24}" y="${y+15}">due end of week ${st.defer}</text></g>`}
     else{
-      const R=14*Math.min(PK,1.3),C=2*Math.PI*R,f=Math.max(0,st.remain/CONFIG.clashTime),urg=st.remain<6;
-      h+=`<g class="mk active${urg?' urgent':''}" data-cx="${c.key}" data-ids="${ids}" style="${urg?`animation-delay:-${(performance.now()%800)/1000}s`:''}"><circle class="bg" cx="${x}" cy="${y}" r="${R}"/><circle class="ring" cx="${x}" cy="${y}" r="${R}"/>
+      const R=20*Math.min(PK,1.3),C=2*Math.PI*R,f=Math.max(0,st.remain/CONFIG.clashTime),urg=st.remain<6,tg=armTarget(c,st);
+      h+=`<g class="mk active${urg&&!tg?' urgent':''}${tg}" data-cx="${c.key}" data-ids="${ids}" style="${urg&&!tg?`animation-delay:-${(performance.now()%800)/1000}s`:''}">${tg===' target'?`<circle class="halo" cx="${x}" cy="${y}" r="${R+10}"/>`:''}${tg===' nope'&&S.armed==='drop'?`<text class="why" x="${x}" y="${y+R+16}">Can't drop: duct or drain</text>`:''}<circle class="bg" cx="${x}" cy="${y}" r="${R}"/><circle class="ring" cx="${x}" cy="${y}" r="${R}"/>
         <circle class="arc" cx="${x}" cy="${y}" r="${R}" stroke-dasharray="${f*C} ${C}" transform="rotate(-90 ${x} ${y})"/><text x="${x}" y="${y}">${Math.ceil(st.remain)}</text></g>`;
     }
+  }
+  // The most urgent open crossing gets a callout with a 45-degree leader
+  const top=S.armed?null:openCx().filter(c=>!S.cx[c.key].defer).sort((a,b)=>S.cx[a.key].remain-S.cx[b.key].remain)[0];
+  if(top){
+    const x=doorX(top.turn.door)+lDx(top.turn.layer),y=laneY(top.thru),R=20*Math.min(PK,1.3),k=R*0.7,d=18,w=262,hh=56,left=x-k-d-w>=8;
+    const ex=left?x-k:x+k,ey=y-k,cx2=left?ex-d:ex+d,cy2=ey-d,bx=left?cx2-w:cx2,by=cy2-hh;
+    h+=`<g class="callout" pointer-events="none"><line x1="${ex}" y1="${ey}" x2="${cx2}" y2="${cy2}"/><rect x="${bx}" y="${by}" width="${w}" height="${hh}" rx="10"/>
+      <text class="c1" x="${bx+14}" y="${by+24}">${top.turn.id} × ${top.thru.id}</text><text class="c2" x="${bx+14}" y="${by+45}">Move one, or use a power-up</text></g>`;
   }
   $('#planMain').innerHTML=h;
   if(tipKey)showTip(tipKey);
@@ -837,7 +1221,7 @@ function whyText(key){
   if(st.resolved)return st.dropped?`Decided: <b>${st.dropped}</b> drops under the other run at ${R}.`:`Settled late by the design team at ${R}.`;
   const why=`${A} turns into ${R} here. ${B} is in the same layer (L${c.turn.layer+1}), nearer the rooms, and carries on to ${room(c.thru.door)}, so ${A} has to cut across it.`;
   if(st.defer)return `${why}<br>Deferred until the end of week ${st.defer}.`;
-  return `${why}<br>Fix: move one of them to another layer or lane, or play a card. <b>${Math.ceil(st.remain)} s</b> until it hardens into a Clash Area.`;
+  return `${why}<br>Fix: move one of them to another layer or lane, or use a power-up. <b>${Math.ceil(st.remain)} s</b> until it hardens into a Clash Area.`;
 }
 function showTip(key){
   const t=$('#hov'),txt=whyText(key);
@@ -889,17 +1273,18 @@ plan.addEventListener('pointerdown',e=>{
 const ui={sig:{},logOpen:false,boardOpen:false,logSeen:0};
 function setHTML(sel,html){if(ui.sig[sel]!==html){ui.sig[sel]=html;$(sel).innerHTML=html}}
 function renderPanels(){
-  const a=S.areas.length,open=openCx(),urgent=open.some(c=>S.cx[c.key].remain<6);
-  const pips=Array.from({length:CONFIG.maxAreas},(_,i)=>`<i class="pip${i<a?' on':''}"></i>`).join('');
-  setHTML('#chips',`${S.ranked?`<span class="chip" title="Ranked round">${esc(NET.nick)} · <b>${S.round}</b></span>`:''}<span class="chip">Week <b>${S.week}</b></span><span class="chip">Fitted <b>${S.connected}</b></span>
-    <span class="chip${urgent?' bad':''}" title="Open crossings: the red rings in the plan">Crossings <b>${open.length}</b></span>
-    <span class="chip" title="Three Clash Areas stall the project">Clash Areas <span class="pips">${pips}</span></span>`);
-  $('#weekfill').style.width=(100*S.weekT/CONFIG.weekLen)+'%';
+  const a=S.areas.length,left=Math.max(0,Math.ceil(CONFIG.weekLen-S.weekT));
+  setHTML('#weekN',`Week ${S.week}`);setHTML('#weekLeft',`Meeting in ${left} s`);setHTML('#dialTxt',`W${S.week}`);
+  $('#dialArc').setAttribute('stroke-dasharray',`${(100*S.weekT/CONFIG.weekLen).toFixed(1)} 100`);
+  setHTML('#fitted',String(S.connected));
+  setHTML('#slots',Array.from({length:CONFIG.maxAreas},(_,i)=>`<i${i<a?' class="on"':''}></i>`).join(''));
+  $('#slots').setAttribute('aria-label',`Clash Areas: ${a} of ${CONFIG.maxAreas}`);
+  $('#rankChip').hidden=!S.ranked;if(S.ranked)setHTML('#rankChip',`${esc(NET.nick)} · <b>${S.round}</b>`);
   // Card dock: icon + count; a card won at the meeting pops in
   const g=S.gained&&fresh(S.gained.at,1)?S.gained:null;
-  setHTML('#dock',['drop','reroute','defer'].map((k,i)=>`<button class="cardic${S.armed===k?' armed':''}${g&&g.k===k?' new':''}" data-card="${k}" ${S.hand[k]?'':'disabled'} aria-label="${CARDS[k].name}, ${S.hand[k]} left">
-    <svg><use href="#ic-c-${k}"/></svg><span class="n">${S.hand[k]}</span><span class="tip"><i>${i+1}</i>${CARDS[k].name}</span></button>`).join(''));
-  setHTML('#armed',S.armed?(CARDS[S.armed].target==='cx'?`${CARDS[S.armed].name}: click a red ring · Esc cancels`:'Reroute: click a run or a waiting service · Esc cancels'):'');
+  setHTML('#dock',['drop','reroute','defer'].map((k,i)=>`<div class="pu${S.hand[k]?'':' off'}"><button class="cardic${S.armed===k?' armed':''}${g&&g.k===k?' new':''}" data-card="${k}" ${S.hand[k]?'':'disabled'} aria-label="${CARDS[k].name}, ${S.hand[k]} left" title="${CARDS[k].name} (key ${i+1})">
+    <svg><use href="#ic-c-${k}"/></svg><span class="n">${S.hand[k]}</span></button><b>${CARDS[k].name}</b></div>`).join(''));
+  setHTML('#armed',S.armed?{drop:'Drop is armed: click a crossing it can fix · Esc cancels',defer:'Defer is armed: click a crossing to park it · Esc cancels',reroute:'Reroute is armed: click a run or a waiting service · Esc cancels'}[S.armed]:'');
   if(ui.logOpen)ui.logSeen=S.log.length;
   setHTML('#logN',S.log.length>ui.logSeen?String(S.log.length-ui.logSeen):'');
   setHTML('#log',S.log.length?S.log.map(l=>`<li class="${l.kind}"><span class="w">W${l.week}</span>${l.text}</li>`).join(''):'<li>Decisions you name appear here. Clash Areas do too.</li>');
@@ -907,25 +1292,32 @@ function renderPanels(){
   $('#board').classList.toggle('open',ui.boardOpen);
 }
 $('#dock').addEventListener('click',e=>{const b=e.target.closest('[data-card]');if(b)arm(b.dataset.card)});
-$('#bLog').addEventListener('click',()=>{ui.logOpen=!ui.logOpen;ui.boardOpen=false;renderPanels()});
-$('#bBoard').addEventListener('click',()=>{ui.boardOpen=!ui.boardOpen;ui.logOpen=false;renderBoard();renderPanels()});
+$('#bLog').addEventListener('click',()=>{ui.logOpen=!ui.logOpen;ui.boardOpen=false;drawerClosed();renderPanels()});
+$('#bBoard').addEventListener('click',()=>{ui.boardOpen=!ui.boardOpen;ui.logOpen=false;renderBoard();drawerClosed();renderPanels()});
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{ui.logOpen=ui.boardOpen=false;drawerClosed();renderPanels()}));
+// A drawer opened from the pause menu goes back to the pause menu when it closes
+function drawerClosed(){if(S.modal==='drawer'&&!ui.logOpen&&!ui.boardOpen)showModal('paused')}
 
 // Hover highlight across both views and the list
 function hoverIds(t){const el=t&&t.closest&&t.closest('[data-id],[data-ids]');if(!el)return null;return el.dataset.ids?el.dataset.ids.split(','):[el.dataset.id]}
-for(const el of[sec,plan]){
+for(const el of[sec,plan,$('#queue')]){
   el.addEventListener('pointerover',e=>{if(drag)return;S.hl=hoverIds(e.target);applyHL()});
   el.addEventListener('pointerleave',()=>{S.hl=null;applyHL()});
 }
 function applyHL(){
   const ids=S.hl;
-  document.querySelectorAll('#sec .run,#sec .tok,#plan .run').forEach(el=>el.classList.toggle('dim',!!ids&&!ids.includes(el.dataset.id)));
+  document.querySelectorAll('#sec .run,.qcard,#plan .run').forEach(el=>el.classList.toggle('dim',!!ids&&!ids.includes(el.dataset.id)));
+  // Reroute armed: runs it can take glow, the rest grey out. Drop or Defer armed: runs step back so the rings stand out.
+  const arm=S.armed;document.body.classList.toggle('armed-cx',arm==='drop'||arm==='defer');
+  document.querySelectorAll('#sec .run,.qcard,#plan .run').forEach(el=>{const r=byId(el.dataset.id),ok=arm==='reroute'&&r&&!r.locked&&!TYPES[r.type].gravity;
+    el.classList.toggle('target',!!ok);el.classList.toggle('nope',arm==='reroute'&&!ok)});
   document.querySelectorAll('#plan .mk').forEach(el=>el.classList.toggle('dim',!!ids&&!el.dataset.ids.split(',').some(i=>ids.includes(i))));
   // Light up the room(s) the hovered, selected or dragged service goes to
   const doors=new Set([...(ids||[]),S.sel,drag&&drag.id].map(id=>id&&byId(id)).filter(Boolean).map(r=>r.door));
   document.querySelectorAll('#plan [data-room]').forEach(el=>el.querySelector('.ric').classList.toggle('hot',doors.has(+el.dataset.room)));
 }
 
-function render(){renderSec();renderPlan();renderPanels();applyHL()}
+function render(){renderSec();renderPlan();renderPanels();applyHL();rotateCheck()}
 
 // ---------- Online: Kahoot-style games on Firebase (GitHub Pages build) ----------
 // firebase-config.js sets window.MINIMEP_FIREBASE; net.js connects and fires 'mininet-ready' with window.MiniNet.
@@ -938,7 +1330,11 @@ const NET={api:null,expected:!!(window.MINIMEP_FIREBASE||window.__MINIMEP_FAKE),
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 // Ranking: most services fitted, then fewest Clash Areas, then most weeks
 const better=(a,b)=>a.fitted!==b.fitted?a.fitted>b.fitted:a.areas!==b.areas?a.areas<b.areas:a.weeks>b.weeks;
-function firstModal(){return NET.expected&&!NET.joined&&!NET.practice&&!NET.failed?'join':'intro'}
+function firstModal(){
+  if(NET.joined||NET.practice)return'intro';
+  if(NET.expected&&!NET.failed&&PARAMS.get('pin'))return'join';
+  return'landing';
+}
 function onNetReady(){
   if(NET.ready||!window.MiniNet)return;
   NET.api=window.MiniNet;NET.ready=true;
@@ -948,7 +1344,7 @@ function onNetReady(){
   }
 }
 addEventListener('mininet-ready',onNetReady);
-addEventListener('mininet-failed',()=>{NET.failed=true;if(S.modal==='join'){toast("Can't reach the game server. You can still practice.",true,5000);showModal('intro')}});
+addEventListener('mininet-failed',()=>{NET.failed=true;if(S.modal==='join'){toast("Can't reach the game server. You can still practice.",true,5000);showModal('landing')}});
 function initNet(){onNetReady()}
 
 async function submitPin(){
@@ -968,7 +1364,7 @@ function watchGame(pin){
     NET.api.watchPlayers(pin,ps=>{
       NET.players=ps;NET.playersLoaded=true;const me=ps.find(p=>p.id===NET.api.uid);
       if(me&&me.nick&&!NET.nick){NET.nick=me.nick;const i=$('#nick');if(S.modal==='nick'&&i&&!i.value)i.value=me.nick}
-      if(S.modal==='lobby')setHTML('#lobby',lobbyChips());
+      if(S.modal==='lobby'){setHTML('#lobby',lobbyChips());setHTML('#lobbyN',lobbyCount())}
       const rl=$('#rankline');if(rl&&S.runAt)rl.innerHTML=rankLine();   // rank updates live as others finish
       renderBoard();
     })
@@ -1004,7 +1400,8 @@ function onSession(){
 // 3, 2, 1, GO! before a live start
 function countdown(done){
   const el=$('#cd'),n=$('#cdn'),steps=['3','2','1','GO!'];let i=0;
-  $('#ov').classList.remove('show');S.modal='countdown';el.classList.add('show');
+  $('#ov').classList.remove('show','screen');S.modal='countdown';el.classList.add('show');
+  const n0=NET.players.length;$('#cdsub').textContent=`${n0} player${n0===1?'':'s'} · same arrivals for everyone`;
   const step=()=>{
     if(i===steps.length){el.classList.remove('show');done();return}
     n.textContent=steps[i++];n.classList.remove('pop');void n.offsetWidth;n.classList.add('pop');
@@ -1015,7 +1412,7 @@ function countdown(done){
 function leaveGame(){
   NET.unsub.forEach(u=>u());NET.unsub=[];
   Object.assign(NET,{pin:'',session:null,players:[],playersLoaded:false,joined:false,practice:false,lastStatus:null});
-  $('#bBoard').hidden=true;ui.boardOpen=false;
+  $('#bBoard').hidden=true;ui.boardOpen=false;ui.landMenu='root';
   if(history.replaceState&&PARAMS.get('pin'))history.replaceState(null,'',location.pathname);
   PARAMS.delete('pin');newGame();
 }
@@ -1029,6 +1426,7 @@ function startRanked(){
   S.ranked=true;S.round=NET.pin;hideModal();render();
   saveMe(me=>({...me,state:'playing'}));
 }
+function lobbyCount(){const n=NET.players.length;return `${n} player${n===1?'':'s'}`}
 function lobbyChips(){
   const ps=NET.players.slice().sort((a,b)=>(a.joinedAt||'').localeCompare(b.joinedAt||''));
   return ps.length?ps.map(p=>`<span class="${p.id===NET.api.uid?'me':''}">${esc(p.nick)}</span>`).join(''):'<span>…</span>';
@@ -1086,17 +1484,44 @@ function renderBoard(){
 }
 
 // ---------- Controls ----------
-function togglePause(){if(S.over)return;if(S.modal==='paused')hideModal();else if(!S.modal)showModal('paused');render()}
+function togglePause(){
+  if(S.over)return;
+  if(S.modal==='drawer'){ui.logOpen=ui.boardOpen=false;hideModal()}
+  else if(S.modal==='paused')hideModal();else if(!S.modal)showModal('paused');
+  render();
+}
 $('#bPause').addEventListener('click',togglePause);
+
+// ---------- Theme: follows the system until the player picks, then remembers (the head script applies it before first paint) ----------
+const mqDark=matchMedia('(prefers-color-scheme: dark)');
+function isDark(){const t=document.documentElement.dataset.theme;return t?t==='dark':mqDark.matches}
+function applyTheme(){const d=isDark();$('#bTheme').innerHTML=`<svg><use href="#ic-t-${d?'sun':'moon'}"/></svg>`;$('#bTheme').setAttribute('aria-label',d?'Switch to light theme':'Switch to dark theme')}
+function toggleTheme(){const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('minimep.theme',t)}catch(e){}applyTheme();render()}
+mqDark.addEventListener('change',applyTheme);
+$('#bTheme').addEventListener('click',toggleTheme);
+applyTheme();
+
+// ---------- Phone held upright: ask to rotate during play and pause until it turns (the web can't force rotation on iPhones) ----------
+const mqUpright=matchMedia('(max-width:699px) and (orientation:portrait)');
+function rotateCheck(){
+  const need=mqUpright.matches&&!ui.upright&&!S.over&&(!S.modal||S.modal==='lobby');
+  if(need!==!!ui.rotating){ui.rotating=need;$('#rotate').hidden=!need}
+  if(need)$('#rotLive').hidden=S.modal!=='lobby';
+}
+mqUpright.addEventListener('change',rotateCheck);
+$('#bUpright').addEventListener('click',()=>{ui.upright=true;rotateCheck()});
 $('#bRestart').addEventListener('click',()=>{newGame();});
 addEventListener('keydown',e=>{
   if(e.target&&e.target.tagName==='INPUT'){if(e.key==='Enter'){const id=e.target.id;if(id==='pin')submitPin();else if(id==='nick')joinWithNick();else if(id==='cmt')sendComment()}return}
   if(e.key===' '){e.preventDefault();if(S.modal==='intro')startGame();else togglePause()}
-  else if(e.key==='Escape'){S.armed=null;S.sel=null;render()}
+  else if((e.key==='p'||e.key==='P')&&!e.repeat&&(S.modal==='week'||S.modal==='height')){ui.peekKey=true;setPeek(true)}
+  else if(e.key==='Escape'&&ui.peek){setPeek(false)}
+  else if(e.key==='Escape'){if(S.modal==='drawer'){ui.logOpen=ui.boardOpen=false;drawerClosed();renderPanels();return}S.armed=null;S.sel=null;render()}
   else if(e.key==='r'||e.key==='R'){if(!S.modal||S.over)newGame()}
   else if(['1','2','3'].includes(e.key))arm(['drop','reroute','defer'][+e.key-1]);
 });
 
+addEventListener('keyup',e=>{if((e.key==='p'||e.key==='P')&&ui.peekKey){ui.peekKey=false;setPeek(false)}});
 let last=performance.now(),acc=0;
 function frame(now){
   const dt=Math.min(0.1,(now-last)/1000);last=now;

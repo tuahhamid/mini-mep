@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mini MEP Host</title>
+<script>try{const t=localStorage.getItem('minimep.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <script src="firebase-config.js"></script>
 <script type="module" src="net.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -71,7 +72,7 @@ tr:first-child td{font-weight:700} td.rk{font-family:var(--mono);color:var(--mut
 <div class="wrap">
   <header>
     <h1>Mini MEP <small>Host</small></h1>
-    <span class="muted" id="conn">Connecting…</span>
+    <span style="display:flex;align-items:center;gap:14px"><span class="muted" id="conn">Connecting…</span><button id="bTheme" type="button">Dark</button></span>
   </header>
 
   <section id="setup" class="card" hidden>
@@ -117,6 +118,12 @@ const better=(a,b)=>a.fitted!==b.fitted?a.fitted>b.fitted:a.areas!==b.areas?a.ar
 const H={api:null,pin:null,session:null,players:[],unsub:[],seen:new Set()};
 const joinBase=new URL('./',location.href);                    // the game sits next to this page
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3500)}
+// Light or dark: follows the system until picked, then remembered (shared with the game). Dark suits a projector in a lit room.
+const mqDark=matchMedia('(prefers-color-scheme: dark)');
+const isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':mqDark.matches};
+function applyTheme(){const d=isDark();$('#bTheme').textContent=d?'Light':'Dark';$('#bTheme').setAttribute('aria-label',d?'Switch to light theme':'Switch to dark theme')}
+$('#bTheme').addEventListener('click',()=>{const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('minimep.theme',t)}catch(e){}applyTheme()});
+mqDark.addEventListener('change',applyTheme);applyTheme();
 function mine(){try{return JSON.parse(localStorage.getItem('minimep.host.games')||'[]')}catch(e){return[]}}
 function remember(pin){try{const l=[pin,...mine().filter(p=>p!==pin)].slice(0,12);localStorage.setItem('minimep.host.games',JSON.stringify(l))}catch(e){}}
 
