@@ -8,7 +8,7 @@ export async function connect(config) {
     import(`${SDK}/firebase-auth.js`),
     import(`${SDK}/firebase-firestore.js`),
   ]);
-  const { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection } = fs;
+  const { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where } = fs;
   const app = initializeApp(config);
   const cred = await signInAnonymously(getAuth(app));   // the id survives reloads in this browser
   const uid = cred.user.uid;
@@ -26,6 +26,10 @@ export async function connect(config) {
         q => cb(q.docs.map(d => ({ id: d.id, ...d.data() }))), onErr);
     },
     setPlayer(pin, data) { return setDoc(player(pin, uid), data); },
+    async listMySessions() {        // the rules only allow listing your own games
+      const q = await getDocs(query(collection(db, 'sessions'), where('hostUid', '==', uid)));
+      return q.docs.map(d => ({ pin: d.id, ...d.data() }));
+    },
     createSession(pin, data) { return setDoc(session(pin), { ...data, hostUid: uid }); },
     updateSession(pin, patch) { return updateDoc(session(pin), patch); },
     removePlayer(pin, id) { return deleteDoc(player(pin, id)); },

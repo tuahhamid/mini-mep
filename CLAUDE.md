@@ -16,7 +16,7 @@ The maintainer is a BIM coordinator, not a game developer. Explain game-dev choi
   - `host.html` is the host screen.
   - `net.js` + `backend-firebase.js` are the online layer.
   - `firestore.rules` is a reference copy; the live rules are in the Firebase console.
-- All tuning numbers sit in `CONFIG` at the top of `index.html`. Bump `CONFIG.version` when gameplay changes (currently `web-v0.8`).
+- All tuning numbers sit in `CONFIG` at the top of `index.html`. Bump `CONFIG.version` when gameplay changes (currently `web-v0.9`).
 - The game state is one object, `S`.
 - Three seeded random streams: `rngSpawn` (arrivals) and `rngWeek` (meeting offers) depend only on the seed, so ranked games are the same for everyone. `rng` covers anything that depends on the player's moves.
 - The screen redraws about 5 times a second. CSS animations survive the redraws through a negative `animation-delay` (`ago()`, `fresh()`), and `setHTML()` skips unchanged writes.
@@ -24,7 +24,8 @@ The maintainer is a BIM coordinator, not a game developer. Explain game-dev choi
 - Screens and dialogs all go through `showModal(kind)` on `#ov`:
   - Full pages (`#ov.screen`): `landing`, `join`, `nick`, `lobby`, `intro`, `closed`. `firstModal()` picks the landing page, or the join screen for a `?pin=` link.
   - Over the board (`#ov.meeting`): `week` and `height` (Extra Layer). `setPeek()` hides them so players can look at the paused board (button, hold P, Esc).
-  - Ordinary dialogs: `paused` (holds the tools on phones), `over`.
+  - Ordinary dialogs: `paused` (holds the tools on phones), and `over` (`#ov.results`): the rank badge (`resBadge`), a line on who is ahead or behind (`resSub`), the lesson, stats, the power-ups used (including `S.layerPicks`), and the live leaderboard (`overBoard`).
+  - Pause and results both have **Main menu** ("Leave game" in a PIN game), which calls `leaveGame()`. Leaving a ranked run before it stalls takes a second tap (`midRun()`), and the player's state becomes `left` so the host stops listing them as still playing.
 - Gameplay:
   - `header.hud` holds the week dial, the score, the Clash Area slots and the round tools.
   - `renderQueue()` draws the arrival cards; dragging from a card uses window pointer listeners, because the cards re-render during a drag.
@@ -38,14 +39,15 @@ The maintainer is a BIM coordinator, not a game developer. Explain game-dev choi
   Touch is tap a run, then tap a slot.
 - The theme follows the system until the player picks one; the choice is saved under `minimep.theme`, which the game and host share.
 - Firestore data:
-  - `sessions/<PIN>` holds `{hostUid, mode, status, seed}`.
+  - `sessions/<PIN>` holds `{hostUid, mode, status, seed, createdAt, expiresAt}`. Anyone can look up a game by PIN, but only its host can list it (the PIN is the key). Games close by themselves after 24 hours: `net.js` reads a session past `expiresAt` as closed, and the rules refuse player writes to it. The host page's "Your games" lists the host's own games (`listMySessions()`) with Open and Close, and closes expired ones for real.
   - `sessions/<PIN>/players/<uid>` holds `{nick, state, games, best, runs[≤20]}`.
   - Each player writes only their own document; only the host changes the game.
+  - When the rules change, push the code first, then publish `firestore.rules` in the console (new rules require `expiresAt`, which older pages don't send).
 
 ## Tests
 Both tests serve the repo over local http with a fake backend and a null config, so they never touch the real project.
-- `tests/web.spec.js`: a host plus players, end to end. Expect 27/27.
-- `tests/layout.spec.js`: theme, pause menu, the three layouts, rotate prompt, touch, and the gameplay HUD, power-ups and meeting with Peek. Expect 34/34.
+- `tests/web.spec.js`: a host plus players, end to end. Expect 38/38.
+- `tests/layout.spec.js`: theme, pause menu, the three layouts, rotate prompt, touch, the gameplay HUD, power-ups, the meeting with Peek, and practice results. Expect 39/39.
 
 Run them with `PW_MODULE=<path to playwright-core> node tests/<name>.spec.js <screenshot dir>`, using an installed Chrome or Edge. Keep `node_modules` out of the repo; screenshots (`*.png`) are git-ignored.
 
@@ -54,8 +56,8 @@ Run them with `PW_MODULE=<path to playwright-core> node tests/<name>.spec.js <sc
   - Step 1: theme, layouts, touch, rotate prompt.
   - Step 2: landing page and join flow.
   - Step 3: gameplay HUD, arrival cards, power-ups, meeting with Peek, Extra Layer.
+  - Step 4: results screen (rank first, live leaderboard beside it) and the projector host screen (join banner, bar chart, status panel, one button bar).
 - **Next:**
-  - Step 4: results screen (rank first, leaderboard beside it) and the projector host screen.
   - Step 5: sound (synthesized with Web Audio).
   - Step 6: phone checks.
 

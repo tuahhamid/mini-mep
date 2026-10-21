@@ -26,6 +26,7 @@ function fakeBackend(){
       watchSession(pin,cb){return sub(()=>cb(load()['s/'+pin]||null))},
       watchPlayers(pin,cb){return sub(()=>cb(players(pin)))},
       async setPlayer(pin,data){const d=load();if((d['s/'+pin]||{}).status==='closed')throw new Error('closed');if(!data.nick)throw new Error('rules: nick required');d['p/'+pin+'/'+uid]=data;save(d);changed()},
+      async listMySessions(){const d=load();return Object.keys(d).filter(k=>k.startsWith('s/')&&d[k].hostUid===uid).map(k=>({pin:k.slice(2),...d[k]}))},
       async createSession(pin,data){const d=load();d['s/'+pin]={...data,hostUid:uid};save(d);changed()},
       async updateSession(pin,patch){const d=load();Object.assign(d['s/'+pin],patch);save(d);changed()},
       async removePlayer(pin,id){const d=load();delete d['p/'+pin+'/'+id];save(d);changed()}};
@@ -96,7 +97,8 @@ function fakeBackend(){
   await alpha.screenshot({path:path.join(out,'web-2-player-lobby.png')});
 
   await alpha.evaluate(()=>{__toy.CONFIG.countdownMs=400});
-  await host.click('#bStart');await alpha.waitForTimeout(250);
+  await host.click('#bStart');
+  await alpha.waitForFunction(()=>/same arrivals/.test(document.querySelector('#cdsub').textContent),null,{timeout:3000}).catch(()=>{});
   ok(/2 players · same arrivals/.test(await alpha.textContent('#cdsub')),'countdown: shows the player count');
   await alpha.waitForTimeout(1800);
   const st=await Promise.all([alpha,bravo].map(p=>p.evaluate(()=>({r:__toy.S.ranked,seed:__toy.S.seed,modal:__toy.S.modal,round:__toy.S.round}))));
@@ -106,9 +108,13 @@ function fakeBackend(){
   await bravo.evaluate(()=>{__toy.S.connected=2;__toy.gameOver('full',__toy.spawn('SA',0))});
   await host.waitForTimeout(500);
   const rows=await host.$$eval('#board tr',tr=>tr.map(r=>[...r.cells].map(c=>c.textContent.trim()).join(' ')));
-  ok(rows.length===2&&/Alpha 5/.test(rows[0])&&/Bravo 2/.test(rows[1]),'host leaderboard ranks Alpha above Bravo: '+JSON.stringify(rows));
+  ok(rows.length===2&&/Alpha\s+5/.test(rows[0])&&/Bravo\s+2/.test(rows[1]),'host leaderboard ranks Alpha above Bravo: '+JSON.stringify(rows));
   await alpha.waitForFunction(()=>/#1<\/b> of 2/.test(document.querySelector('#modal').innerHTML),null,{timeout:3000}).catch(()=>{});
   ok(/#1<\/b> of 2/.test(await alpha.innerHTML('#modal')),'Alpha sees #1 of 2');
+  await alpha.waitForFunction(()=>document.querySelectorAll('#overlb tbody tr').length===2,null,{timeout:3000}).catch(()=>{});
+  ok(await alpha.evaluate(()=>/#1/.test(document.querySelector('#resBadge').textContent)&&document.querySelectorAll('#overlb tbody tr').length===2&&!!document.querySelector('#overlb tr.me')),'results: rank badge first, live leaderboard beside it with "you" highlighted');
+  ok(await host.evaluate(()=>!document.querySelector('#boardView').hidden&&document.querySelectorAll('#board .bar i').length===2&&document.querySelector('#nDone').textContent==='2'),'host: bar chart of services fitted, and both players counted as finished');
+  await alpha.screenshot({path:path.join(out,'web-4-results.png')});
   await alpha.fill('#cmt','nice');await alpha.click('[data-act="cmt"]');await alpha.waitForTimeout(300);
   await host.screenshot({path:path.join(out,'web-3-host-board.png')});
 
@@ -116,8 +122,13 @@ function fakeBackend(){
   const csv=fs.readFileSync(await dl.path(),'utf8');
   ok(/^pin,nickname,finished_at/.test(csv)&&/Alpha/.test(csv)&&/nice/.test(csv)&&csv.trim().split('\n').length===3,'host: results CSV has one row per run, with comments');
 
+  ok(/Leave game/.test(await bravo.textContent('#modal [data-act="menu"]')),'results (ranked): "Leave game" button');
+  await bravo.click('#modal [data-act="menu"]');await bravo.waitForTimeout(200);
+  ok(await bravo.evaluate(()=>__toy.S.modal==='landing'&&!__toy.NET.pin&&!/pin=/.test(location.search)),'results: Leave game goes straight to the landing page (score already saved), PIN cleared');
+
   await host.click('#bClose');await host.click('#bClose');
   await alpha.waitForFunction(()=>__toy.NET.session&&__toy.NET.session.status==='closed',null,{timeout:5000}).catch(()=>{});
+  await host.waitForFunction(()=>/closed/i.test(document.querySelector('#status').textContent),null,{timeout:5000}).catch(()=>{});
   ok(/closed/i.test(await host.textContent('#status')),'host: game closed (two clicks)');
   await alpha.click('[data-act="again"]');await alpha.waitForTimeout(200);
   ok(await alpha.evaluate(()=>__toy.S.modal==='closed'),'player: Play again on a closed game shows "has ended"');
@@ -132,6 +143,27 @@ function fakeBackend(){
   ok(await c.evaluate(()=>__toy.S.modal==='intro')&&/Start ranked game/.test(await c.innerHTML('#modal')),'open round: after the nickname, rules then Start (no lobby)');
   await c.click('[data-act="start"]');
   ok(await c.evaluate(pin2=>__toy.S.ranked&&__toy.S.round===pin2,pin2),'open round: ranked game starts');
+  await c.click('#bPause');await c.click('#modal [data-act="menu"]');await c.waitForTimeout(150);
+  ok(await c.evaluate(()=>__toy.S.modal==='paused'&&/won't count/.test(document.querySelector('#modal [data-act="menu"]').textContent)),'pause mid-run: Leave game asks for a second tap');
+  await c.click('#modal [data-act="menu"]');await c.waitForTimeout(400);
+  ok(await c.evaluate(()=>__toy.S.modal==='landing'&&!__toy.NET.joined),'pause mid-run: second tap leaves for the landing page');
+  ok(!/Charlie/.test(await host.textContent('#stillPlaying')),'host: a player who left mid-run is not listed as still playing');
+
+  // ---- Your games: the host lists only their own games, and can close one from the list
+  await host.click('#bNew');await host.waitForTimeout(400);await host.screenshot({path:path.join(out,'web-5-host-games.png')});
+  ok(await host.evaluate(([p1,p2])=>{const t=document.querySelector('#mine').textContent;return t.includes(p1)&&t.includes(p2)&&/Recently closed/.test(t)&&!!document.querySelector(`[data-shut="${p2}"]`)&&!document.querySelector(`[data-shut="${p1}"]`)},[pin,pin2]),'host: "Your games" lists the open round with Close, the closed game under Recently closed');
+  await host.click(`[data-shut="${pin2}"]`);await host.click(`[data-shut="${pin2}"]`);await host.waitForTimeout(400);
+  ok(await host.evaluate(p=>!document.querySelector(`[data-shut="${p}"]`)&&__host.api.getSession(p).then(x=>x.status==='closed'),pin2),'host: Close in the list (two clicks) closes that game');
+
+  // ---- Games close by themselves after 24 hours
+  await host.click('[data-mode="open"]');await host.waitForTimeout(300);
+  const pin3=(await host.textContent('#pin')).trim();
+  await host.evaluate(p=>{const d=JSON.parse(localStorage.getItem('fakedb'));d['s/'+p].expiresAt=Date.now()-1000;localStorage.setItem('fakedb',JSON.stringify(d));new BroadcastChannel('fakedb').postMessage(1)},pin3);
+  await host.waitForFunction(()=>/24 hours/.test(document.querySelector('#status').textContent),null,{timeout:3000}).catch(()=>{});
+  ok(/Closed after 24 hours/.test(await host.textContent('#status')),'host: a game past 24 hours shows as closed');
+  const late=await ctx.newPage();watch(late,'late');
+  await late.goto(`${base}?pin=${pin3}`);await late.waitForTimeout(500);
+  ok(await late.evaluate(()=>__toy.S.modal==='join'&&!__toy.NET.pin),'player: a PIN past 24 hours is refused like an ended game');
 
   // ---- Practice without a PIN
   const d=await ctx.newPage();watch(d,'practice');

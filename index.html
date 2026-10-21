@@ -198,6 +198,8 @@ svg .hit{fill:transparent}
 .drawer .dclose{position:absolute;top:6px;right:6px;width:44px;height:44px;padding:0;border:0;background:none;font-size:24px;line-height:1;color:var(--muted)}
 .drawer .dclose:hover{color:var(--ink)}
 .pausebar{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
+.pausebar .tool{width:auto;height:auto;padding:0 15px;border-radius:10px;box-shadow:none;background:var(--bg)}
+.menubtn.sure,.linkbtn.sure{border-color:var(--danger);color:var(--danger)}
 /* Rotate prompt: a phone held upright during play. The game pauses until the phone turns sideways. */
 .rotate{position:fixed;inset:0;z-index:16;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:32px 28px;text-align:center;background:var(--bg)}
 .rotate[hidden]{display:none}
@@ -361,6 +363,36 @@ svg .callout .c2{font-size:14px;fill:var(--bg);opacity:.85}
   .meet h2{font-size:30px}.meet .arch{font-size:16px}.pucard .ci{width:60px;height:60px}.pucard .ci svg{width:34px;height:34px}
   .nums b{font-size:28px}
 }
+/* ---------- Results (step 4): rank first, the lesson, stats, power-ups used; the live leaderboard beside it ---------- */
+.overlay.results .modal{max-width:1240px;padding:0;overflow:auto}
+.results{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+.res{padding:36px 40px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.resside{background:var(--soft);padding:36px 32px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.res p,.resside p{margin:0}
+.reshead{display:flex;align-items:center;gap:20px}
+.badge{width:108px;height:108px;border-radius:50%;background:var(--accent);color:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none}
+.badge b{font:700 40px/1 var(--mono)} .badge span{font-size:15px;font-weight:600;opacity:.9}
+.res h2{margin:0;font-size:38px;line-height:1.1}
+.res .eyebrow{margin:0 0 6px;font:600 14px var(--mono);letter-spacing:.08em;color:var(--muted)}
+.lesson{display:flex;gap:16px;align-items:flex-start;background:var(--soft);border-radius:16px;padding:16px 18px}
+.lesson b{display:block;font-size:19px;margin-bottom:4px} .lesson span{font-size:16.5px;line-height:1.5;color:var(--ink)}
+.li{width:44px;height:44px;border-radius:9px;flex:none;display:grid;place-items:center;color:var(--panel);font-weight:700;font-size:22px}
+.li.area{background:var(--area)} .li.area::after{content:"\2715"} .li.full{background:var(--danger)} .li.full::after{content:"\2195"}
+.res .stats{margin:0} .stats b.area{color:var(--area)}
+.used{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;font-size:16px}
+.usedpu{display:inline-flex;align-items:center;gap:8px}
+.usedpu .ci{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center} .usedpu .ci svg{width:22px;height:22px}
+.usedpu.xl .ci{border-color:var(--accent);color:var(--accent)}
+.res .big{font-size:19px;padding:14px 26px}
+.small{font-size:15px}
+.lbhead{display:flex;justify-content:space-between;align-items:baseline} .resside h3{margin:0;font-size:24px}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--ok);font-weight:600;font-size:15px} .live i{width:9px;height:9px;border-radius:50%;background:var(--ok)}
+.olb{width:100%;border-collapse:collapse;font-size:17px;font-variant-numeric:tabular-nums}
+.olb th{text-align:left;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 6px 8px} .olb th.n,.olb td.n{text-align:right}
+.olb td{padding:10px 6px;border-top:1px solid var(--line)} .olb td.n,.olb td.rk{font-family:var(--mono)}
+.olb tr.me td{background:var(--panel);color:var(--accent);font-weight:700}
+.pbest{display:flex;flex-direction:column;gap:2px} .pbest span{color:var(--muted)} .pbest b{font:600 44px/1 var(--mono)} .pbest em{font-style:normal;font-weight:700;color:var(--ok)}
+@media (max-width:860px),(orientation:landscape) and (max-height:500px){.results{grid-template-columns:1fr}.res,.resside{padding:22px}.res h2{font-size:28px}.badge{width:80px;height:80px}.badge b{font-size:28px}}
 /* ---------- Three layouts (agreed 20 Oct): desktop above 1100 px, compact 700 to 1100 px, phone under 700 px.
    Browser zoom is covered by the same rules: zooming in narrows the width the page sees. ---------- */
 /* Compact: laptops at 125-150% zoom, tablets */
@@ -496,7 +528,7 @@ svg .callout .c2{font-size:14px;fill:var(--bg);opacity:.85}
 const CONFIG={
   lanes:5, layers:4, maxLayers:6,            // corridor grid: lanes sideways x layers high (the height budget)
   heightWeeks:[2,4],
-  version:'web-v0.8',
+  version:'web-v0.9',
   countdownMs:800,                            // each step of the 3-2-1-GO! countdown before a live start
   gameOverMs:2400,                            // how long GAME OVER shows before the stall dialog (0 skips it)
   round:{round:1,seed:1019},                  // ranked round used until the owner starts one online                          // the architect gives +100 mm at the start of these weeks, and never again
@@ -555,7 +587,7 @@ function newGame(seed){
   // Three random streams: arrivals and meeting offers depend only on the seed, so a ranked round
   // is the same game for everyone; the third covers things your own play changes (default placement, knock-ons).
   S.rngSpawn=mulberry32(S.seed);S.rngWeek=mulberry32(S.seed^0x5bd1e995);S.rng=mulberry32(S.seed^0x9e3779b9);
-  S.used={drop:0,reroute:0,defer:0};S.ranked=false;S.submitted=false;S.round=null;
+  S.used={drop:0,reroute:0,defer:0};S.layerPicks=[];S.ranked=false;S.submitted=false;S.round=null;
   for(const p of CONFIG.preplaced){const r=makeRun(p.type,p.door);Object.assign(r,{lane:p.lane,layer:p.layer,placed:true,counted:true,fixed:!!TYPES[p.type].gravity})}
   $("#fx").innerHTML=""; $("#go").classList.remove("show"); hideTip(); ui.logSeen=0; ui.logOpen=false; ui.boardOpen=false; syncCrossings(); showModal(firstModal()); render();
 }
@@ -668,6 +700,7 @@ function knockOn(){
 }
 // The new layer joins the chosen band: pipes go on top of the pure-pipe layers, ducts under the first tray layer, trays on top
 function addLayer(b){
+  (S.layerPicks=S.layerPicks||[]).push(b);
   let at;
   if(b==='pipe'){at=0;while(at<S.L&&S.bands[at].length===1&&S.bands[at][0]==='pipe')at++}
   else if(b==='duct'){at=S.bands.findIndex(x=>x.includes('tray'));if(at<0)at=S.L}
@@ -916,29 +949,35 @@ function showModal(kind){
       <div class="meetbar"><button class="peekbtn" data-act="peek"><svg><use href="#ic-eye"/></svg>Peek at the corridor</button><span>or hold P</span></div></div>`;
   }else if(kind==='paused'){
     h=`<h2>Paused</h2><p>Press Space or Resume to carry on.</p>
-    <div class="pausebar"><button class="primary" data-act="resume">Resume</button><button data-act="log">Decision log</button>${NET.pin?'<button data-act="board">Leaderboard</button>':''}<button data-act="theme">${isDark()?'Light theme':'Dark theme'}</button><button data-act="restart">Restart</button></div>`;
+    <div class="pausebar"><button class="primary" data-act="resume">Resume</button><button data-act="log">Decision log</button>${NET.pin?'<button data-act="board">Leaderboard</button>':''}<button class="tool" data-act="theme" aria-label="${isDark()?'Switch to light theme':'Switch to dark theme'}" title="Light or dark"><svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg></button><button data-act="restart">Restart</button><button class="menubtn" data-act="menu">${menuLabel()}</button></div>`;
   }else if(kind==='over'){
-    const o=S.over,best=o.prevBest;
-    const why=o.reason==='full'
-      ?`<p><b>The corridor ran out of height.</b> No slot is left for ${o.id} (${TYPES[o.type].name}). This isn't a clash you can fix by moving runs. It's a space-planning decision for the design team: reroute some services, give the corridor more height, or carry less in it.</p>`
-      :`<p><b>Three Clash Areas.</b> Each one named a place, not a decision, and the corridor stopped moving.</p>`;
-    h=`<h2>Project stalled</h2>${why}
-    <div class="stats"><div><b>${S.week}</b>weeks</div><div><b>${S.connected}</b>services fitted</div><div><b>${S.decisions}</b>decisions</div><div><b>${S.areas.length}</b>Clash Areas</div></div>
-    ${S.ranked?`<p id="rankline">${rankLine()}</p>
-      <div class="nickrow"><label for="cmt">One-line feedback (optional)</label><input id="cmt" maxlength="200" autocomplete="off" placeholder="What felt good or unfair?"><button data-act="cmt">Send</button></div>`
-      :`<p>${best?`Previous best: ${best.connected} services fitted.`:''}${!best||S.connected>best.connected?' New best.':''}</p>`}
-    ${S.chances>0
-      ?`<p><b>One more chance.</b> ${o.reason==='full'?`Escalate it: ${o.id} is rerouted through another corridor and the game goes on.`:'Escalate it: the design team settles the latest Clash Area late, and the game goes on.'} You get this once per game.</p>
-        ${S.ranked?'<p>Play after this is for fun: your ranked score is already frozen.</p>':''}
-        <div class="bar"><button class="primary" data-act="chance">One more chance</button><button data-act="again">Start over</button></div>`
-      :`<button class="primary" data-act="again">Play again</button>`}`;
+    const o=S.over,best=o.prevBest,a=S.areas.length;
+    const lesson=o.reason==='full'
+      ?{icon:'full',title:'The corridor ran out of height',text:`No slot is left for ${o.id} (${TYPES[o.type].name}). Moving runs can't fix this: it's a space-planning call for the design team. Reroute some services, give the corridor more height, or carry less in it.`}
+      :{icon:'area',title:'Three Clash Areas',text:'Each one named a place, not a decision. Next time, move a run or use a power-up before the ring runs out.'};
+    const used=['drop','reroute','defer'].filter(k=>S.used[k]).map(k=>`<span class="usedpu"><span class="ci"><svg><use href="#ic-c-${k}"/></svg></span>${CARDS[k].name} × ${S.used[k]}</span>`)
+      .concat((S.layerPicks||[]).map(b=>`<span class="usedpu xl"><span class="ci"><svg><use href="#ic-c-height"/></svg></span>Extra Layer: ${BAND_NAME[b]}</span>`)).join('');
+    const left=`<section class="res">
+      <div class="reshead"><div class="badge" id="resBadge">${resBadge()}</div><div><p class="eyebrow">${S.ranked?`GAME ${S.round} · ${S.runAt?'SCORE SAVED':'SAVING…'}`:'PRACTICE'}</p><h2>Project stalled in week ${S.week}</h2><p class="muted" id="resSub">${resSub()}</p></div></div>
+      <div class="lesson"><span class="li ${lesson.icon}" aria-hidden="true"></span><div><b>${lesson.title}</b><span>${lesson.text}</span></div></div>
+      <div class="stats"><div><b>${S.connected}</b>fitted</div><div><b>${S.week}</b>weeks</div><div><b>${S.decisions}</b>decisions</div><div><b class="area">${a}</b>Clash Area${a===1?'':'s'}</div></div>
+      ${used?`<div class="used"><b>Power-ups you used:</b>${used}</div>`:''}
+      ${S.chances>0?`<div class="bar"><button class="primary big" data-act="chance">One more chance</button><button class="big" data-act="again">Start over</button><button class="linkbtn" data-act="menu">${menuLabel()}</button></div>
+        <p class="muted small">${o.reason==='full'?`One more chance reroutes ${o.id} through another corridor.`:'One more chance has the design team settle the last Clash Area late.'} Once per game.${S.ranked?' Play after this is for fun: your ranked score is saved.':''}</p>`
+        :`<div class="bar"><button class="primary big" data-act="again">Play again</button><button class="linkbtn" data-act="menu">${menuLabel()}</button></div>`}
+      ${S.ranked?`<div class="nickrow"><label for="cmt">One-line feedback (optional)</label><input id="cmt" maxlength="200" autocomplete="off" placeholder="What felt good or unfair?"><button data-act="cmt">Send</button></div>`:''}
+    </section>`;
+    const right=S.ranked
+      ?`<section class="resside"><div class="lbhead"><h3>Leaderboard</h3><span class="live"><i></i>Live</span></div><p id="rankline">${rankLine()}</p><div id="overlb">${overBoard()}</div><p class="muted small">Ranked by services fitted, then fewest Clash Areas, then most weeks.</p></section>`
+      :`<section class="resside"><h3>Practice</h3><div class="pbest">${best?`<span>Previous best</span><b>${best.connected}</b>`:'<span>Your first practice game</span>'}${!best||S.connected>best.connected?'<em>New best</em>':''}</div><p class="muted">Practice scores stay on this device. Join a game with a PIN to get on a leaderboard.</p></section>`;
+    h=`<div class="results">${left}${right}</div>`;
   }
-  m.innerHTML=h; $('#ov').classList.toggle('screen',SCREENS.has(kind)); $('#ov').classList.toggle('meeting',kind==='week'||kind==='height'); $('#ov').classList.add('show');
+  m.innerHTML=h; $('#ov').classList.toggle('screen',SCREENS.has(kind)); $('#ov').classList.toggle('meeting',kind==='week'||kind==='height'); $('#ov').classList.toggle('results',kind==='over'); $('#ov').classList.add('show');
   const f=m.querySelector('#pin')||m.querySelector('#nick')||m.querySelector('.lmenu button')||m.querySelector('button');if(f)f.focus();
   if(kind==='join')pinBoxes();
   if(kind==='landing'){drawLanding();startLanding()}
 }
-function hideModal(){S.modal=null;$('#ov').classList.remove('show','screen','meeting','peeking');ui.peek=false;$('#peekbar').hidden=true}
+function hideModal(){S.modal=null;$('#ov').classList.remove('show','screen','meeting','peeking','results');ui.peek=false;$('#peekbar').hidden=true}
 // Peek at the corridor during the week meeting: the choice hides, the paused board shows, and a bar leads back
 function setPeek(on){
   if(on&&S.modal!=='week'&&S.modal!=='height')return;
@@ -976,6 +1015,11 @@ $('#modal').addEventListener('click',e=>{
   if(a==='log'||a==='board'){ui.logOpen=a==='log';ui.boardOpen=a==='board';if(a==='board')renderBoard();$('#ov').classList.remove('show');S.modal='drawer';renderPanels();return}
   if(a==='theme'){toggleTheme();if(S.modal==='paused')showModal('paused');else{b.innerHTML=`<svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg>`;b.setAttribute('aria-label',isDark()?'Switch to light theme':'Switch to dark theme')}return}
   if(a==='restart'){newGame();return}
+  if(a==='menu'){
+    // Leaving a ranked game before it stalls throws the run away, so that takes a second tap
+    if(midRun()&&!b.dataset.sure){b.dataset.sure='1';b.classList.add('sure');b.textContent="Tap again to leave: this run won't count";
+      setTimeout(()=>{if(b.isConnected){delete b.dataset.sure;b.classList.remove('sure');b.textContent=menuLabel()}},4000);return}
+    leaveGame();return}
   if(a==='resume')hideModal();
   else if(a==='cmt'){sendComment();return}
   else if(a==='offer')takeOffer(b.dataset.k);
@@ -1366,6 +1410,7 @@ function watchGame(pin){
       if(me&&me.nick&&!NET.nick){NET.nick=me.nick;const i=$('#nick');if(S.modal==='nick'&&i&&!i.value)i.value=me.nick}
       if(S.modal==='lobby'){setHTML('#lobby',lobbyChips());setHTML('#lobbyN',lobbyCount())}
       const rl=$('#rankline');if(rl&&S.runAt)rl.innerHTML=rankLine();   // rank updates live as others finish
+      if(S.modal==='over'&&S.ranked){setHTML('#overlb',overBoard());setHTML('#resBadge',resBadge());const rs=$('#resSub');if(rs)rs.textContent=resSub()}
       renderBoard();
     })
   ];
@@ -1409,7 +1454,13 @@ function countdown(done){
   };
   step();
 }
+const midRun=()=>NET.joined&&S.ranked&&!S.runAt&&!S.over;
+const menuLabel=()=>NET.joined?'Leave game':'Main menu';
 function leaveGame(){
+  if(midRun()&&NET.api){            // tell the host this player stopped, so they don't stay under "still playing"
+    const me=NET.players.find(p=>p.id===NET.api.uid),pin=NET.pin;
+    if(me){const{id,...body}=me;NET.writing=NET.writing.then(()=>NET.api.setPlayer(pin,{...body,state:me.games?'done':'left'})).catch(e=>console.error(e))}
+  }
   NET.unsub.forEach(u=>u());NET.unsub=[];
   Object.assign(NET,{pin:'',session:null,players:[],playersLoaded:false,joined:false,practice:false,lastStatus:null});
   $('#bBoard').hidden=true;ui.boardOpen=false;ui.landMenu='root';
@@ -1468,6 +1519,29 @@ function sendComment(){
 function standings(){
   return NET.players.filter(p=>p.best).map(p=>({id:p.id,nick:p.nick||'?',games:p.games||0,...p.best}))
     .sort((a,b)=>better(a,b)?-1:better(b,a)?1:0);
+}
+// Results: rank first (or this game's score in practice), a line on who is just ahead or behind, and the live board
+function resBadge(){
+  if(!S.ranked)return `<b>${S.connected}</b><span>fitted</span>`;
+  const st=standings(),i=st.findIndex(p=>p.id===NET.api.uid);
+  return i<0?'<b>…</b><span>saving</span>':`<b>#${i+1}</b><span>of ${st.length}</span>`;
+}
+function resSub(){
+  if(!S.ranked)return 'Practice game. Nothing is saved online.';
+  const st=standings(),i=st.findIndex(p=>p.id===NET.api.uid);if(i<0)return 'Saving your score…';
+  const me=st[i],n=x=>`${x} service${x===1?'':'s'}`;
+  if(i>0){const d=st[i-1].fitted-me.fitted;return d>0?`${n(d)} behind ${st[i-1].nick}. Your best game counts.`:`Level with ${st[i-1].nick} on services, behind on the tiebreak.`}
+  if(st.length>1){const d=me.fitted-st[1].fitted;return d>0?`${n(d)} ahead of ${st[1].nick}. Your best game counts.`:`Level with ${st[1].nick}, ahead on the tiebreak.`}
+  return 'First on the board. Your best game counts.';
+}
+function overBoard(){
+  const st=standings(),me=NET.api&&NET.api.uid,i=st.findIndex(p=>p.id===me);
+  if(!st.length)return '<p class="muted">Scores appear here as players finish.</p>';
+  const rows=st.slice(0,6).map((p,k)=>[k,p]);if(i>=6)rows.push([i,st[i]]);
+  const more=st.length-rows.length,waiting=NET.players.length-st.length;
+  return `<table class="olb"><thead><tr><th>#</th><th>Player</th><th class="n">Fitted</th><th class="n">Areas</th><th class="n">Weeks</th></tr></thead>
+    <tbody>${rows.map(([k,p])=>`<tr class="${p.id===me?'me':''}"><td class="rk">${k+1}</td><td>${esc(p.nick)}${p.id===me?' (you)':''}</td><td class="n">${p.fitted}</td><td class="n">${p.areas}</td><td class="n">${p.weeks}</td></tr>`).join('')}</tbody></table>
+    ${more>0||waiting>0?`<p class="muted small">${[more>0?`+ ${more} more`:'',waiting>0?`${waiting} still playing`:''].filter(Boolean).join(' · ')}</p>`:''}`;
 }
 function rankLine(){
   if(!NET.joined)return'';const st=standings(),i=st.findIndex(p=>p.id===NET.api.uid);

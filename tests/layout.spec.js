@@ -35,7 +35,7 @@ const TYPES={'.html':'text/html','.js':'text/javascript','.css':'text/css'};
    await p.reload();await p.waitForTimeout(300);
    ok(await p.evaluate(()=>document.documentElement.dataset.theme==='light'),'theme: the choice survives a reload');
    const h=await c.newPage();await h.goto(base+'host.html');await h.waitForTimeout(200);
-   ok(await h.evaluate(()=>document.documentElement.dataset.theme==='light'&&document.querySelector('#bTheme').textContent==='Dark'),'theme: the host page picks up the same choice');
+   ok(await h.evaluate(()=>document.documentElement.dataset.theme==='light'&&document.querySelector('#bTheme use').getAttribute('href')==='#ic-t-moon'),'theme: the host page picks up the same choice');
    await c.close();}
 
   // ---- Desktop: pause menu holds the tools; a drawer opened from it keeps the game paused
@@ -49,6 +49,9 @@ const TYPES={'.html':'text/html','.js':'text/javascript','.css':'text/css'};
    await p.click('#drawer [data-close]');
    ok(await p.evaluate(()=>__toy.S.modal==='paused'),'pause menu: closing the log returns to the pause menu');
    await p.screenshot({path:path.join(out,'layout-desktop.png')});
+   ok(/Main menu/.test(await p.textContent('#modal [data-act="menu"]')),'pause menu (practice): Main menu button');
+   await p.click('#modal [data-act="menu"]');await p.waitForTimeout(150);
+   ok(await p.evaluate(()=>__toy.S.modal==='landing'),'pause menu: Main menu goes straight to the landing page in practice');
    await c.close();}
 
   // ---- Compact: a laptop at 150% zoom sees 960 x 600
@@ -124,6 +127,11 @@ const TYPES={'.html':'text/html','.js':'text/javascript','.css':'text/css'};
    await p.click('.pucard');await p.waitForTimeout(150);
    ok(await p.evaluate(()=>!__toy.S.modal&&__toy.S.week===2),'meeting: picking a power-up starts week 2');
    await p.screenshot({path:path.join(out,'step3-play.png')});
+   await p.evaluate(()=>{__toy.CONFIG.gameOverMs=0;__toy.gameOver('clash')});await p.waitForTimeout(200);
+   ok(await p.evaluate(()=>__toy.S.modal==='over'&&!!document.querySelector('#resBadge')&&/Three Clash Areas/.test(document.querySelector('.lesson').textContent)&&/Practice/.test(document.querySelector('.resside').textContent)),'results (practice): score badge, the lesson, and the practice panel');
+   ok(await noScroll(p),'results: no scrollbars at 1440 x 900');
+   ok(/Main menu/.test(await p.textContent('.res [data-act="menu"]')),'results (practice): Main menu button beside Start over');
+   await p.screenshot({path:path.join(out,'step4-results-practice.png')});
    await c.close();}
 
   ok(errs.length===0,'no page errors '+JSON.stringify(errs));
