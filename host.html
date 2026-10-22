@@ -7,6 +7,7 @@
 <script>try{const t=localStorage.getItem('minimep.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <script src="firebase-config.js"></script>
 <script type="module" src="net.js"></script>
+<script src="sound.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -14,20 +15,22 @@
 /* Host screen: made for a projector. Huge PIN, players popping in, live leaderboard. Tokens match the game. */
 :root{
   --bg:#ECF0EE; --panel:#F9FBFA; --ink:#17262A; --muted:#5A6A6D; --line:#C8D2CF; --soft:#E1E8E5;
-  --accent:#0E6A88; --danger:#C2372C; --ok:#2F7D4F; --warn:#B87A0C;
+  --accent:#0E6A88; --danger:#C2372C; --ok:#2F7D4F; --warn:#B87A0C; --dot:#DE7712;
   --display:"Archivo","Helvetica Neue",Arial,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0F1719; --panel:#152125; --ink:#E2EBE9; --muted:#93A4A6; --line:#2B3B3F; --soft:#1C2A2E;
-  --accent:#56B9D9; --danger:#F0695C; --ok:#5CC48A; --warn:#E2A63A; color-scheme:dark}}
+  --accent:#56B9D9; --danger:#F0695C; --ok:#5CC48A; --warn:#E2A63A; --dot:#F39A3D; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F1719; --panel:#152125; --ink:#E2EBE9; --muted:#93A4A6; --line:#2B3B3F; --soft:#1C2A2E;
-  --accent:#56B9D9; --danger:#F0695C; --ok:#5CC48A; --warn:#E2A63A; color-scheme:dark}
+  --accent:#56B9D9; --danger:#F0695C; --ok:#5CC48A; --warn:#E2A63A; --dot:#F39A3D; color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--display);font-size:17px;padding:20px max(16px,3vw) 32px}
 .wrap{max-width:1400px;margin:0 auto;display:grid;gap:20px}
 header{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;justify-content:space-between}
-h1{margin:0;font-size:26px} h1 small{font:500 14px var(--mono);color:var(--muted);margin-left:8px}
+h1{margin:0;font-size:26px} h1 small{font:500 14px var(--mono);color:var(--muted);margin-left:8px;align-self:flex-end;margin-bottom:3px}
+h1 .brand{display:inline-flex;align-items:flex-start;gap:5px;font:800 26px var(--display);background:none;border:0;border-radius:6px;padding:0;color:var(--ink)}
+.brandsq{width:9px;height:9px;border-radius:2px;margin-top:5px;background:var(--dot);flex:none}
 h2{margin:0 0 12px;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 button{font:600 17px var(--display);border:1.5px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:11px 22px;cursor:pointer}
 button:hover{border-color:var(--accent)} button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
@@ -95,12 +98,14 @@ table.bars td.n{font:700 26px var(--mono);width:60px}
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="ic-t-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="ic-t-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+  <symbol id="ic-t-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
   <symbol id="ic-t-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></symbol>
 </svg>
 <div class="wrap">
   <header>
-    <h1>Mini MEP <small>Host</small></h1>
-    <span style="display:flex;align-items:center;gap:14px"><span class="muted" id="conn">Connecting…</span><button id="bTheme" class="tool" type="button" aria-label="Switch to dark theme" title="Light or dark"><svg><use href="#ic-t-moon"/></svg></button></span>
+    <h1><button class="brand" id="bHome" type="button" aria-label="Back to your games" title="Back to your games">Mini MEP<i class="brandsq"></i><small>Host</small></button></h1>
+    <span style="display:flex;align-items:center;gap:14px"><span class="muted" id="conn">Connecting…</span><button id="bSound" class="tool" type="button" aria-label="Sound on: press to mute" title="Sound on or off: a note plays as each player joins"><svg><use href="#ic-t-sound"/></svg></button><button id="bTheme" class="tool" type="button" aria-label="Switch to dark theme" title="Light or dark"><svg><use href="#ic-t-moon"/></svg></button></span>
   </header>
 
   <section id="setup" class="card" hidden>
@@ -127,8 +132,8 @@ table.bars td.n{font:700 26px var(--mono);width:60px}
       <div class="card side">
         <span class="status" id="status"><i></i><span></span></span>
         <div class="timer"><b id="elapsed">--:--</b><span id="elapsedL">not started</span></div>
-        <div class="counts"><div><b id="nDone">0</b><span>finished</span></div><div><b id="nPlaying">0</b><span>still playing</span></div></div>
-        <div><span class="muted">Still playing</span><div class="chips2" id="stillPlaying"></div></div>
+        <div class="counts"><div><b id="nDone">0</b><span>finished</span></div><div><b id="nPlaying">0</b><span id="nPlayingL">still playing</span></div></div>
+        <div><span class="muted" id="stillPlayingL">Still playing</span><div class="chips2" id="stillPlaying"></div></div>
       </div>
     </div>
     <div class="hostbar">
@@ -148,7 +153,7 @@ table.bars td.n{font:700 26px var(--mono);width:60px}
 const $=s=>document.querySelector(s);
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 const better=(a,b)=>a.fitted!==b.fitted?a.fitted>b.fitted:a.areas!==b.areas?a.areas<b.areas:a.weeks>b.weeks;
-const H={api:null,pin:null,session:null,players:[],unsub:[],seen:new Set()};
+const H={api:null,pin:null,session:null,players:[],unsub:[],seen:new Set(),heard:false};
 const joinBase=new URL('./',location.href);                    // the game sits next to this page
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3500)}
 // Light or dark: follows the system until picked, then remembered (shared with the game). Dark suits a projector in a lit room.
@@ -157,6 +162,10 @@ const isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='d
 function applyTheme(){const d=isDark();$('#bTheme').innerHTML=`<svg><use href="#ic-t-${d?'sun':'moon'}"/></svg>`;$('#bTheme').setAttribute('aria-label',d?'Switch to light theme':'Switch to dark theme')}
 $('#bTheme').addEventListener('click',()=>{const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('minimep.theme',t)}catch(e){}applyTheme()});
 mqDark.addEventListener('change',applyTheme);applyTheme();
+function applySound(){const off=!!(window.MiniSound&&MiniSound.muted),b=$('#bSound');b.innerHTML=`<svg><use href="#ic-t-${off?'mute':'sound'}"/></svg>`;
+  b.setAttribute('aria-pressed',String(off));b.setAttribute('aria-label',off?'Sound off: press to turn on':'Sound on: press to mute')}
+$('#bSound').addEventListener('click',()=>{if(window.MiniSound)MiniSound.toggleMute()});
+if(window.MiniSound){MiniSound.onChange(applySound);applySound()}else $('#bSound').hidden=true;
 const ago=ms=>{const m=Math.max(1,Math.round(ms/60000));return m<60?`${m} min`:`${Math.round(m/60)} h`};
 
 function ready(){
@@ -216,13 +225,13 @@ async function openGame(pin){
   const s=await H.api.getSession(pin);
   if(!s){toast(`No game with PIN ${pin}.`);showSetup();return}
   if(s.hostUid!==H.api.uid)toast('You can watch this game, but it was hosted from another browser, so its buttons will not work.');
-  H.pin=pin;H.seen=new Set();
+  H.pin=pin;H.seen=new Set();H.heard=false;
   history.replaceState(null,'',`${location.pathname}?pin=${pin}`);
   $('#setup').hidden=true;$('#game').hidden=false;
   $('#pin').textContent=pin;
   $('#joinUrl').textContent=(joinBase.host+joinBase.pathname).replace(/\/$/,'');
   H.unsub.forEach(u=>u());
-  H.unsub=[H.api.watchSession(pin,x=>{H.session=x;renderGame()}),H.api.watchPlayers(pin,ps=>{H.players=ps;renderGame()})];
+  H.unsub=[H.api.watchSession(pin,x=>{H.session=x;renderGame()}),H.api.watchPlayers(pin,ps=>{H.players=ps;renderGame();H.heard=true})];
 }
 function renderGame(){
   const s=H.session;if(!s)return;
@@ -234,7 +243,8 @@ function renderGame(){
   $('#pCount').textContent=`${ps.length} player${ps.length===1?'':'s'}`;
   // Only new chips animate in; existing ones keep their place
   const host=s.hostUid===H.api.uid;
-  $('#players').innerHTML=ps.length?ps.map(p=>{const fresh=!H.seen.has(p.id);H.seen.add(p.id);
+  // A note for each player who joins (not for the ones already there when the page opened): a full lobby builds a chord
+  $('#players').innerHTML=ps.length?ps.map((p,i)=>{const fresh=!H.seen.has(p.id);H.seen.add(p.id);if(fresh&&H.heard&&window.MiniSound)MiniSound.cue('join',{n:i});
     return `<span class="${esc(p.state||'')}" style="${fresh?'':'animation:none'}">${esc(p.nick)}${host?`<button aria-label="Remove ${esc(p.nick)}" data-kick="${esc(p.id)}">✕</button>`:''}</span>`}).join('')
     :'<span class="muted" style="animation:none;background:none;border:none;padding:0;font-weight:400;font-size:18px">Waiting for players to join…</span>';
   // Lobby: big nickname chips. Playing or closed: a bar chart of services fitted, best game per player.
@@ -246,7 +256,9 @@ function renderGame(){
   $('#boardMore').textContent=ranked.length>top.length?`+ ${ranked.length-top.length} more players`:'';
   const done=H.players.filter(p=>p.state==='done').length,playing=H.players.filter(p=>p.state==='playing');
   $('#nDone').textContent=done;$('#nPlaying').textContent=playing.length;
-  $('#stillPlaying').innerHTML=playing.length?playing.map(p=>`<span>${esc(p.nick)}</span>`).join(''):'<span style="border:0;padding:0;font-weight:400;color:var(--muted)">Nobody right now</span>';
+  // Once the game is closed, anyone still marked as playing just never finished
+  const shut=s.status==='closed';$('#nPlayingL').textContent=shut?"didn't finish":'still playing';$('#stillPlayingL').textContent=shut?"Didn't finish":'Still playing';
+  $('#stillPlaying').innerHTML=playing.length?playing.map(p=>`<span>${esc(p.nick)}</span>`).join(''):`<span style="border:0;padding:0;font-weight:400;color:var(--muted)">${shut?'Nobody':'Nobody right now'}</span>`;
   tickClock();
 }
 // Time since Start, ticking every second
@@ -272,6 +284,7 @@ $('#bClose').addEventListener('click',async()=>{
   try{await H.api.updateSession(H.pin,{status:'closed'});toast('Game closed. Scores are kept.')}catch(e){toast("Couldn't close the game.")}
 });
 $('#bNew').addEventListener('click',showSetup);
+$('#bHome').addEventListener('click',()=>{if(H.api)showSetup()});
 $('#bCopy').addEventListener('click',async()=>{
   const link=`${joinBase.href}?pin=${H.pin}`;
   try{await navigator.clipboard.writeText(link);toast('Join link copied.')}catch(e){toast(link)}

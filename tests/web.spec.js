@@ -16,6 +16,7 @@ const TYPES={'.html':'text/html','.js':'text/javascript','.css':'text/css'};
 function fakeBackend(){
   window.__MINIMEP_FAKE=(async()=>{
     const load=()=>JSON.parse(localStorage.getItem('fakedb')||'{}'),save=d=>localStorage.setItem('fakedb',JSON.stringify(d));
+    if(!/^http/.test(location.protocol))return;   // the blank page before goto has no storage
     let uid=sessionStorage.getItem('fakeuid');if(!uid){uid='u'+Math.random().toString(36).slice(2,10);sessionStorage.setItem('fakeuid',uid)}
     const ch=new BroadcastChannel('fakedb'),subs=new Set(),fire=()=>subs.forEach(f=>setTimeout(f));
     ch.onmessage=fire;const changed=()=>{ch.postMessage(1);fire()};
@@ -100,7 +101,9 @@ function fakeBackend(){
   await host.click('#bStart');
   await alpha.waitForFunction(()=>/same arrivals/.test(document.querySelector('#cdsub').textContent),null,{timeout:3000}).catch(()=>{});
   ok(/2 players · same arrivals/.test(await alpha.textContent('#cdsub')),'countdown: shows the player count');
+  ok(await alpha.evaluate(()=>MiniSound.log.includes('count'))&&await host.evaluate(()=>MiniSound.log.filter(x=>x==='join').length===2),'sound: countdown beeps for players, a note per player joining on the host');
   await alpha.waitForTimeout(1800);
+  await Promise.all([alpha,bravo].map(p=>p.waitForFunction(()=>__toy.S.ranked&&!__toy.S.modal,null,{timeout:5000}).catch(()=>{})));
   const st=await Promise.all([alpha,bravo].map(p=>p.evaluate(()=>({r:__toy.S.ranked,seed:__toy.S.seed,modal:__toy.S.modal,round:__toy.S.round}))));
   ok(st.every(x=>x.r&&!x.modal&&x.round===pin)&&st[0].seed===st[1].seed,'host Start: countdown, then both play the same ranked game: '+JSON.stringify(st));
 
@@ -160,7 +163,9 @@ function fakeBackend(){
   const pin3=(await host.textContent('#pin')).trim();
   await host.evaluate(p=>{const d=JSON.parse(localStorage.getItem('fakedb'));d['s/'+p].expiresAt=Date.now()-1000;localStorage.setItem('fakedb',JSON.stringify(d));new BroadcastChannel('fakedb').postMessage(1)},pin3);
   await host.waitForFunction(()=>/24 hours/.test(document.querySelector('#status').textContent),null,{timeout:3000}).catch(()=>{});
-  ok(/Closed after 24 hours/.test(await host.textContent('#status')),'host: a game past 24 hours shows as closed');
+  ok(/Closed after 24 hours/.test(await host.textContent('#status'))&&/didn't finish/.test(await host.textContent('#nPlayingL')),'host: a game past 24 hours shows as closed, with "didn\'t finish" instead of "still playing"');
+  await host.click('#bHome');await host.waitForTimeout(300);
+  ok(await host.evaluate(()=>!document.querySelector('#setup').hidden&&document.querySelector('#game').hidden&&!/pin=/.test(location.search)),'host: the Mini MEP title goes back to Your games');
   const late=await ctx.newPage();watch(late,'late');
   await late.goto(`${base}?pin=${pin3}`);await late.waitForTimeout(500);
   ok(await late.evaluate(()=>__toy.S.modal==='join'&&!__toy.NET.pin),'player: a PIN past 24 hours is refused like an ended game');

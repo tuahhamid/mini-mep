@@ -7,6 +7,7 @@
 <script>try{const t=localStorage.getItem('minimep.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <script src="firebase-config.js"></script>
 <script type="module" src="net.js"></script>
+<script src="sound.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -176,8 +177,21 @@ svg .mk.urgent{transform-box:fill-box;transform-origin:center;animation:urgent .
 .modal details{margin:0 0 16px} .modal summary{cursor:pointer;font-weight:600;font-size:17px;margin-bottom:10px}
 .pinline{font-size:17px} .pinline b{font-family:var(--mono)}
 #pin{grid-column:1/-1;font:700 34px var(--mono);letter-spacing:.25em;text-align:center}
-.overlay{position:fixed;inset:0;background:rgba(10,18,20,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
-.overlay.show{display:flex}
+.overlay{position:fixed;inset:0;background:rgba(10,18,20,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10;
+  visibility:hidden;opacity:0;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s}
+/* Transitions. Minor (dialogs over the board): the scrim fades in 0.2 s and the dialog grows from 96%.
+   Major (full screens): a slower crossfade, and the board settles in when a game starts. */
+.overlay.show{visibility:visible;opacity:1;pointer-events:auto;transition:opacity .2s ease}
+.overlay .modal{transform:scale(.96);transition:transform .18s ease}
+.overlay.show .modal{transform:none}
+.overlay.screen{transition:opacity .45s ease,visibility 0s linear .45s}
+.overlay.screen.show{transition:opacity .45s ease}
+.overlay.screen .modal{transform:scale(.97);transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+.overlay.screen.show .modal{transform:none}
+.wrap.enter{animation:enter .6s cubic-bezier(.2,.7,.2,1)}
+@keyframes enter{from{opacity:.35;transform:scale(.985)}}
+.overlay.wide .modal{max-width:1180px}
+@media (prefers-reduced-motion:reduce){.overlay,.overlay.show,.overlay.screen,.overlay .modal{transition:none}.wrap.enter{animation:none}}
 .modal{max-height:calc(100vh - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:780px;width:100%;padding:30px 36px;box-shadow:0 14px 50px rgba(0,0,0,.28);font-size:17px}
 .modal h2{margin:0 0 12px;font-size:30px;line-height:1.2}
 .modal p{margin:0 0 16px;line-height:1.55;color:var(--muted);font-size:17px}
@@ -198,6 +212,8 @@ svg .hit{fill:transparent}
 .drawer .dclose{position:absolute;top:6px;right:6px;width:44px;height:44px;padding:0;border:0;background:none;font-size:24px;line-height:1;color:var(--muted)}
 .drawer .dclose:hover{color:var(--ink)}
 .pausebar{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
+.vol{display:flex;align-items:center;gap:14px;margin-top:18px;font-size:17px;font-weight:600}
+.vol input{flex:1;max-width:320px;accent-color:var(--accent)} .vol output{font:600 16px var(--mono);min-width:48px}
 .pausebar .tool{width:auto;height:auto;padding:0 15px;border-radius:10px;box-shadow:none;background:var(--bg)}
 .menubtn.sure,.linkbtn.sure{border-color:var(--danger);color:var(--danger)}
 /* Rotate prompt: a phone held upright during play. The game pauses until the phone turns sideways. */
@@ -221,6 +237,8 @@ svg .hit{fill:transparent}
 .lmenu button:hover,.lmenu button:focus-visible{transform:translateX(8px)}
 .lmenu button.back{background:none;color:var(--muted);font-size:18px;padding:8px 2px}
 .land svg.scene{width:100%;max-width:760px;height:auto;justify-self:center}
+.land .ltools{position:absolute;top:max(16px,env(safe-area-inset-top,0px));right:max(16px,3vw);display:flex;gap:12px}
+.ltools .tool{position:static;width:48px;height:48px;padding:0;border-radius:50%}
 .land .foot{position:absolute;left:max(24px,8vw);bottom:20px;margin:0;font-size:15px;color:var(--muted)}
 @media (orientation:portrait) and (max-width:899px){.land{grid-template-columns:1fr;align-content:start;padding:32px 24px 72px}.land svg.scene{order:-1;max-width:520px}.land .foot{left:24px}}
 @media (orientation:landscape) and (max-height:500px){.land{padding:16px 24px 40px}.land h1{font-size:48px}.land .tagline{margin:8px 0 16px;font-size:16px}.lmenu button{font-size:24px}}
@@ -250,16 +268,40 @@ svg .hit{fill:transparent}
 .ideas button{border-radius:999px;padding:9px 18px;font-size:17px}
 .scard #nick{font:700 28px var(--display);padding:14px 18px;border:2.5px solid var(--accent);border-radius:14px;background:var(--card);color:var(--ink);width:100%;min-width:0}
 .scard #nick:focus{outline:none}
-.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.how div{border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--card);display:flex;flex-direction:column;gap:10px}
-.how svg{width:100%;height:100px}
-.how b{font-size:19px} .how span{font-size:16.5px;line-height:1.45;color:var(--muted)}
+/* How to play: four steps, a looping picture of the board and a few sentences each */
+.htp{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:28px;align-items:start;text-align:left}
+.htp .hart{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card)}
+.htp .hart svg{width:100%;height:auto;display:block}
+.htp .htext{display:flex;flex-direction:column;gap:12px;min-width:0}
+.htp h3{margin:0;font-size:30px;line-height:1.15}
+.htp p{margin:0;font-size:18px;line-height:1.5}
+.htp dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:17px;line-height:1.45}
+.htp dt{font-weight:700} .htp dd{margin:0;color:var(--muted)}
+.hnav{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:6px}
+.hdots{display:flex;gap:8px;margin-right:auto}
+.modal .hdots button{width:44px;height:44px;border-radius:50%;padding:0;font-size:16px;font-weight:700}
+.modal .hdots button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+@media (max-width:860px),(orientation:landscape) and (max-height:500px){.htp{grid-template-columns:1fr;gap:16px}.htp h3{font-size:24px}.htp .hart{max-width:520px}}
+/* Tutorial: a coach bubble and a spotlight on the part being taught */
+.coach{position:fixed;z-index:30;width:min(420px,calc(100vw - 32px));box-sizing:border-box;background:var(--ink);color:var(--bg);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 40px rgba(0,0,0,.35)}
+.coach[hidden],.spot[hidden]{display:none}
+.coach .eyebrow{color:inherit;opacity:.75;margin:0}
+.coach b{font-size:22px;line-height:1.2}
+.coach .tx{font-size:17px;line-height:1.5}
+.coach .cbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:4px}
+.coach button{font-size:17px;padding:11px 20px;border-radius:10px}
+.coach button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.coach button.skip{background:none;border:0;color:inherit;opacity:.85;text-decoration:underline;text-underline-offset:4px;padding:10px 4px;font-size:16px}
+.coach .arr{position:absolute;width:16px;height:16px;background:var(--ink);transform:rotate(45deg)}
+.spot{position:fixed;inset:0;z-index:9;pointer-events:none}
+.spot svg{display:block}.spot path{fill:rgba(10,18,20,.55)}.spot.full path{fill:rgba(10,18,20,.45)}
+.coach.over{box-shadow:0 0 0 2px var(--bg),0 18px 40px rgba(0,0,0,.5)}
 .closedlb{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .closedlb li{display:grid;grid-template-columns:32px 1fr auto;gap:10px;font-size:18px;padding:8px 10px;border-radius:10px;background:var(--soft)}
 .closedlb li.me{outline:2px solid var(--accent)}
 .closedlb .rk,.closedlb .sc{font-family:var(--mono)}
-@media (max-width:760px){.how{grid-template-columns:1fr}.scard{padding:26px 22px;border-radius:18px}.scard h2{font-size:30px}.pinbox{gap:7px}.pinbox span{height:60px;font-size:30px}}
-@media (orientation:landscape) and (max-height:500px){.scard{padding:20px 24px;gap:12px}.scard h2{font-size:26px}.pinbox span{height:52px;font-size:28px}.how svg{height:64px}}
+@media (max-width:760px){.scard{padding:26px 22px;border-radius:18px}.scard h2{font-size:30px}.pinbox{gap:7px}.pinbox span{height:60px;font-size:30px}}
+@media (orientation:landscape) and (max-height:500px){.scard{padding:20px 24px;gap:12px}.scard h2{font-size:26px}.pinbox span{height:52px;font-size:28px}}
 /* ---------- Gameplay (step 3): HUD with week dial, score and Clash Area slots; arrival cards; power-ups ---------- */
 header.hud{min-height:60px;gap:12px}
 .hudl,.hudr{display:flex;align-items:center;gap:16px}
@@ -276,6 +318,12 @@ header.hud{min-height:60px;gap:12px}
 .slots i{width:26px;height:26px;border-radius:6px;border:2px dashed var(--area);display:grid;place-items:center;font-style:normal;font-weight:700;font-size:15px;color:var(--panel)}
 .slots i.on{background:var(--area);border-style:solid}
 .slots i.on::after{content:"\2715"}
+/* A new strike: the slot that just filled pops and glows red, and the label flashes */
+.slots i.hit{animation:strike 1.4s ease-out both}
+.areas.hit .alabel{animation:strikelbl 1.4s ease-out both}
+@keyframes strike{0%{transform:scale(1);box-shadow:0 0 0 0 var(--danger);background:var(--danger);border-color:var(--danger)}25%{transform:scale(1.55);box-shadow:0 0 0 8px color-mix(in srgb,var(--danger) 35%,transparent);background:var(--danger);border-color:var(--danger)}100%{transform:scale(1);box-shadow:0 0 0 0 transparent}}
+@keyframes strikelbl{0%,60%{color:var(--danger)}100%{color:inherit}}
+@media (prefers-reduced-motion:reduce){.slots i.hit,.areas.hit .alabel{animation:none}}
 .alabel{font-size:14px;color:var(--muted)}
 header.hud{position:relative;z-index:1}   /* stays under dialogs and their scrim */
 header.hud .tools{position:static;z-index:auto}
@@ -415,7 +463,7 @@ svg .callout .c2{font-size:14px;fill:var(--bg);opacity:.85}
   .weekbar{height:4px}
   .board{grid-template-columns:minmax(220px,32%) 1fr;gap:6px}
   .card h2{display:none}
-  #bBoard,#bLog,#bRestart,#bTheme{display:none}
+  #bBoard,#bLog,#bRestart,#bTheme,#bSound{display:none}
   #planCard{padding-right:76px}                       /* a column of its own for Pause and the power-ups, clear of the plan */
   header.hud{min-height:44px} .dial{width:40px;height:40px} .weektxt,.alabel,#rankChip,.score span{display:none}
   .score b{font-size:24px} .slots i{width:20px;height:20px;font-size:12px}
@@ -463,6 +511,8 @@ svg .callout .c2{font-size:14px;fill:var(--bg);opacity:.85}
     <symbol id="ic-t-restart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
     <symbol id="ic-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="ic-t-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="ic-t-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+    <symbol id="ic-t-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
     <symbol id="ic-t-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></symbol>
   </defs>
 </svg>
@@ -479,6 +529,7 @@ svg .callout .c2{font-size:14px;fill:var(--bg);opacity:.85}
         <div class="tools">
           <button class="tool" id="bBoard" aria-label="Leaderboard" title="Leaderboard" hidden><svg><use href="#ic-t-trophy"/></svg></button>
           <button class="tool" id="bLog" aria-label="Decision log" title="Decision log"><svg><use href="#ic-t-log"/></svg><span class="n" id="logN"></span></button>
+          <button class="tool" id="bSound" aria-label="Sound on: press to mute (M)" title="Sound on or off (M)"><svg><use href="#ic-t-sound"/></svg></button>
           <button class="tool" id="bTheme" aria-label="Switch to dark theme" title="Light or dark"><svg><use href="#ic-t-moon"/></svg></button>
           <button class="tool" id="bPause" aria-label="Pause" title="Pause (Space)"><svg><use href="#ic-t-pause"/></svg></button>
           <button class="tool" id="bRestart" aria-label="Restart" title="Restart (R)"><svg><use href="#ic-t-restart"/></svg></button>
@@ -506,6 +557,8 @@ svg .callout .c2{font-size:14px;fill:var(--bg);opacity:.85}
 <div class="gameover" id="go" role="alert"><span class="g">GAME</span><span class="o">OVER</span><small>Click to continue</small></div>
 <div class="overlay" id="ov"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="spot" id="spot" hidden></div>
+<div class="coach" id="coach" role="dialog" aria-live="polite" hidden><span class="arr" id="coachArr"></span><p class="eyebrow" id="coachN"></p><b id="coachT"></b><span class="tx" id="coachX"></span><div class="cbar"><button type="button" class="primary" id="coachGo"></button><button type="button" class="skip" id="coachSkip">Skip tutorial</button></div></div>
 <div class="peekbar" id="peekbar" role="status" hidden><span><b>Peeking · the game is paused</b><small id="peekline"></small></span><button type="button" class="primary" id="bPeekBack">Back to the meeting</button></div>
 <div class="rotate" id="rotate" role="alertdialog" aria-labelledby="rotH" hidden>
   <svg width="180" height="180" viewBox="0 0 200 200" aria-hidden="true">
@@ -560,8 +613,8 @@ const TYPES={
 const CARDS={
   drop:   {name:'Drop',         desc:'One run dips under the other where it turns. Not for ducts or gravity drains.',target:'cx'},
   reroute:{name:'Reroute',      desc:'Send one run through the next corridor instead.',target:'run'},
-  defer:  {name:'Defer',        desc:'Park one crossing until the end of next week, with an owner.',target:'cx'},
-  height: {name:'Extra Layer',  desc:'The architect drops the ceiling 100 mm: one more layer in the section, and you agree which band gets it.'}
+  defer:  {name:'Defer',        desc:'Put one crossing on hold until the end of next week.',target:'cx'},
+  height: {name:'Extra Layer',  desc:'The architect lowers the ceiling 100 mm: one more layer in the section, and you agree which band gets it.'}
 };
 
 // ---------- State ----------
@@ -614,17 +667,18 @@ function bandNames(layer){
 const layerEmpty=layer=>!S.runs.some(r=>r.placed&&r.layer===layer);
 // Re-band an empty layer: cheap while nothing is built to the agreement, locked once something is
 function reband(layer){
-  if(S.over||S.modal)return;
-  if(!layerEmpty(layer)){toast(`L${layer+1} has services in it. Only an empty layer can change band.`,true);return}
+  if(S.over||S.modal||S.tut)return;
+  if(!layerEmpty(layer)){toast(`Layer ${layer+1} has services in it. Only an empty layer can move to another band.`,true);return}
   const order=['pipe','duct','tray'],cur=S.bands[layer],next=cur.length>1?cur[0]:order[(order.indexOf(cur[0])+1)%3];
   S.bands[layer]=[next];
-  toast(`L${layer+1} is now a ${BAND_NAME[next].slice(0,-1)} layer.`);
+  toast(`Layer ${layer+1} now belongs to the ${BAND_NAME[next].slice(0,-1)} band.`);
   render();
 }
 function taken(lane,layer,except){
   return S.runs.some(r=>r.placed&&r!==except&&r.layer===layer&&lane>=r.lane&&lane<r.lane+W(r));
 }
 function canPlace(r,lane,layer){
+  if(S.tut&&!(S.tut.only&&S.tut.only(r,lane,layer)))return false;   // tutorial: only the move the coach asks for
   if(!band(r.type).includes(layer))return false;
   if(lane<0||lane+W(r)>S.lanes)return false;
   for(let i=lane;i<lane+W(r);i++)if(taken(i,layer,r))return false;
@@ -650,21 +704,22 @@ function syncCrossings(){
     S.cx[c.key]={remain:CONFIG.clashTime,defer:null,resolved:false,area:false};
     if(!S.seen.cross){S.seen.cross=1;toast(`First crossing: ${c.turn.id} turns into ${room(c.turn.door)} across ${c.thru.id}. Swap lanes or layers to clear it.`,false,5000)}
   }
-  for(const k in S.cx)if(!keys.has(k)&&!S.cx[k].area)delete S.cx[k];
+  ui.gone=0;for(const k in S.cx)if(!keys.has(k)&&!S.cx[k].area){delete S.cx[k];ui.gone++}
   S.list=list; return list;
 }
 
 // ---------- Actions ----------
-function place(r,lane,layer){
+function place(r,lane,layer,auto){
   r.lane=lane;r.layer=layer;
   if(!r.placed){r.placed=true;if(!r.counted){r.counted=true;S.connected++}}
   if(TYPES[r.type].gravity&&!r.fixed){r.fixed=true;toast(`${r.id} is fixed now. A gravity drain needs its fall, so plan around it.`)}
-  S.sel=null; syncCrossings(); render();
+  S.sel=null; syncCrossings();
+  snd(auto?'stamp':ui.gone?'clear':'place',{kind:TYPES[r.type].shape,room:r.door}); render();
 }
 function spawn(type,door){
   if(!type)type=S.spawned<CONFIG.opening.length?CONFIG.opening[S.spawned]:pickType();
   if(door==null)door=Math.floor(S.rngSpawn()*CONFIG.rooms.length);
-  S.spawned++; const r=makeRun(type,door);
+  S.spawned++; const r=makeRun(type,door); snd('arrive',{kind:TYPES[type].shape,room:door});
   const q=queue(); if(q.length>CONFIG.queueMax)autoPlace(q[0]);
   render(); return r;
 }
@@ -679,13 +734,14 @@ function autoPlace(r){
   const s=slots[Math.floor(S.rng()*slots.length)];
   addLog('auto',`Nobody decided: a modeller placed ${r.id} by default.`);
   toast(`Too many waiting. A modeller placed ${r.id} by default.`,true);
-  place(r,s.lane,s.layer);
+  place(r,s.lane,s.layer,true);
 }
 function makeArea(c){
   const st=S.cx[c.key]; st.area=true; c.turn.locked=c.thru.locked=true;
   S.areas.push({key:c.key,door:c.turn.door,a:c.turn.id,b:c.thru.id});
-  addLog('area',`Clash Area at ${room(c.turn.door)}: ${c.turn.id} × ${c.thru.id}. It names a place, not a decision. Both runs are stuck.`);
-  toast(`Clash Area at ${room(c.turn.door)}: parked, not decided.`,true);
+  const n=S.areas.length,of=CONFIG.maxAreas;S.strikeAt=performance.now();
+  addLog('area',`Clash Area ${n} of ${of} at ${room(c.turn.door)}: ${c.turn.id} × ${c.thru.id}. Logged, not solved: the clash is still there, and both runs are stuck.`);
+  toast(`Clash Area ${n} of ${of} at ${room(c.turn.door)}: logged, not solved.${n<of?` ${of-n} left before the project stalls.`:''}`,true);snd('area',{room:c.turn.door});
   if(S.areas.length>=CONFIG.maxAreas)gameOver('clash');
 }
 function knockOn(){
@@ -693,7 +749,7 @@ function knockOn(){
   if(!c.length)return;
   const r=c[Math.floor(S.rng()*c.length)],n=CONFIG.rooms.length;let d;
   do{d=Math.floor(S.rng()*n)}while(d===r.door);
-  const old=r.door; r.door=d; syncCrossings();
+  const old=r.door; r.door=d; syncCrossings(); snd('knock',{kind:TYPES[r.type].shape,from:old,to:d});
   addLog('knock',`Design change: ${r.id} now serves ${room(d)}, not ${room(old)}. Nobody told you.`);
   toast(`Knock-on: ${r.id} now goes to ${room(d)}. Nobody told you.`,true,4500);
   S.flash={id:r.id,at:performance.now()}; render();
@@ -707,7 +763,7 @@ function addLayer(b){
   else at=S.L;
   for(const r of S.runs)if(r.placed&&r.layer>=at)r.layer++;
   S.bands.splice(at,0,[b]);S.L=S.bands.length;S.heightGiven++;syncCrossings();
-  addLog('decision',`The architect lowers the ceiling 100 mm. The new layer goes to ${BAND_NAME[b]}. Owner: Architect, with you.`);
+  addLog('decision',`The architect lowers the ceiling 100 mm. The new layer goes to ${BAND_NAME[b]}.`);
 }
 // What each band needs right now: waiting services and free single-lane slots
 function bandNeed(b){
@@ -719,6 +775,7 @@ function bandNeed(b){
 // ---------- Cards ----------
 function arm(k){
   if(S.over||S.modal)return;
+  if(S.tut&&S.tut.arm!==k){toast('Not yet: follow the coach.');return}
   if(!S.hand[k]){toast(`No ${CARDS[k].name} left.`);return}
   S.armed=S.armed===k?null:k; S.sel=null; render();
 }
@@ -732,14 +789,14 @@ function applyCx(key){
     const cand=[c.turn,c.thru].filter(r=>!TYPES[r.type].duct&&!TYPES[r.type].gravity).sort((a,b)=>W(a)-W(b));
     if(!cand.length){toast("Neither run can drop: ducts and gravity drains can't dip.",true);return}
     const d=cand[0],o=d===c.turn?c.thru:c.turn;
-    st.resolved=true;st.defer=null;st.dropped=d.id;spend('drop');fxDrop(c,d,o);
-    addLog('decision',`${d.id} drops under ${o.id} at ${room(c.turn.door)}. Owner: ${TYPES[d.type].owner}.`);
-    toast(`Decision: ${d.id} drops under ${o.id}. Owner: ${TYPES[d.type].owner}.`);
+    st.resolved=true;st.defer=null;st.dropped=d.id;spend('drop');fxDrop(c,d,o);snd('drop',{room:c.turn.door});
+    addLog('decision',`${d.id} drops under ${o.id} at ${room(c.turn.door)}.`);
+    toast(`Decision: ${d.id} drops under ${o.id}.`);
   }else if(S.armed==='defer'){
     if(st.resolved||st.defer){toast('Already decided or deferred.');return}
-    st.defer=S.week+1;spend('defer');
-    addLog('defer',`Deferred: ${c.turn.id} × ${c.thru.id} at ${room(c.turn.door)}, until the end of week ${S.week+1}. Owner: ${TYPES[c.turn.type].owner}.`);
-    toast(`Deferred until the end of week ${S.week+1}. Owner: ${TYPES[c.turn.type].owner}.`);
+    st.defer=S.week+1;spend('defer');snd('defer',{room:c.turn.door});
+    addLog('defer',`Deferred: ${c.turn.id} × ${c.thru.id} at ${room(c.turn.door)}, until the end of week ${S.week+1}.`);
+    toast(`On hold until the end of week ${S.week+1}.`);
   }
   render();
 }
@@ -747,20 +804,23 @@ function applyRun(r){
   if(!r||S.armed!=='reroute')return;
   if(r.locked){toast(`${r.id} is stuck in a Clash Area. It's too late to reroute it.`,true);return}
   if(TYPES[r.type].gravity){toast("Gravity drains can't be rerouted: they need their fall.",true);return}
+  if(S.tut&&S.tut.rr&&r.id!==S.tut.rr){toast(`Not that one: reroute ${S.tut.rr}.`);return}
   S.runs=S.runs.filter(x=>x!==r); if(!r.counted){r.counted=true;S.connected++}
-  spend('reroute'); syncCrossings();
-  addLog('decision',`${r.id} rerouted through the next corridor. Owner: ${TYPES[r.type].owner}.`);
-  toast(`Decision: ${r.id} rerouted. Owner: ${TYPES[r.type].owner}.`); render();
+  spend('reroute'); syncCrossings(); snd('reroute',{kind:TYPES[r.type].shape,room:r.door});
+  addLog('decision',`${r.id} rerouted through the next corridor.`);
+  toast(`Decision: ${r.id} rerouted.`); render();
 }
 function explainCx(key){
   const c=S.list.find(x=>x.key===key),st=S.cx[key];if(!c)return;
-  if(st.area)return toast(`Clash Area: ${c.turn.id} × ${c.thru.id}. It was parked, never decided.`);
+  if(st.area)return toast(`Clash Area: ${c.turn.id} × ${c.thru.id}. Logged, not solved: it's still there.`);
   toast(`${c.turn.id} turns into ${room(c.turn.door)} and ${c.thru.id} is in its way: same layer, nearer the rooms, and it keeps going past that door.`,false,5000);
 }
 
 // ---------- Clock ----------
 function tick(dt){
   if(S.over||S.modal||ui.rotating)return;
+  // Tutorial: nothing arrives on its own and the week never ends; the crossing timers run only when the coach lets them
+  if(S.tut){if(!S.tut.run)return;S.t+=dt;for(const c of S.list){const st=S.cx[c.key];if(!st||st.resolved||st.area||st.defer)continue;st.remain-=dt;if(st.remain<=0)makeArea(c)}return}
   S.t+=dt;S.weekT+=dt;
   S.nextSpawn-=dt; if(S.nextSpawn<=0){S.nextSpawn+=S.spawnEvery;spawn();if(S.over)return}
   if(S.knockAt!=null&&S.weekT>=S.knockAt){S.knockAt=null;knockOn()}
@@ -775,7 +835,7 @@ function endWeek(){
   for(const c of S.list){const st=S.cx[c.key];if(st&&st.defer&&st.defer<=done){st.defer=null;addLog('due',`Due now: ${c.turn.id} × ${c.thru.id} at ${room(c.turn.door)}. The deferral has run out.`)}}
   const pool=['drop','drop','drop','reroute','reroute','defer','defer'];
   const a=pool[Math.floor(S.rngWeek()*pool.length)];let b;do{b=pool[Math.floor(S.rngWeek()*pool.length)]}while(b===a);
-  S.offer=[a,b];
+  S.offer=[a,b];snd('week');
   // Scheduled height first (you choose the band), then the usual card pick
   if(CONFIG.heightWeeks.includes(done+1)&&S.L<CONFIG.maxLayers){S.pendingHeight=true;showModal('height')}else showModal('week');
 }
@@ -783,7 +843,7 @@ function takeOffer(k){
   if(k==='height'){showModal('height');return}
   S.hand[k]++;S.gained={k,at:performance.now()};nextWeek();
 }
-function chooseHeight(b){addLayer(b);if(S.pendingHeight){S.pendingHeight=false;showModal('week')}else nextWeek()}
+function chooseHeight(b){addLayer(b);snd('height');if(S.pendingHeight){S.pendingHeight=false;showModal('week')}else nextWeek()}
 function nextWeek(){
   S.week++; S.spawnEvery=Math.max(CONFIG.minSpawn,S.spawnEvery*CONFIG.spawnSpeedup);
   S.knockAt=S.week>=CONFIG.knockOnFrom?CONFIG.weekLen*(0.3+0.4*S.rngWeek()):null;
@@ -794,6 +854,7 @@ function gameOver(reason,r){
   let best=null;try{best=JSON.parse(localStorage.getItem('minimep.segment.best')||'null')}catch(e){}
   S.over.prevBest=best;
   if(!best||S.connected>best.connected){try{localStorage.setItem('minimep.segment.best',JSON.stringify({connected:S.connected,weeks:S.week}))}catch(e){}}
+  snd('over');
   if(S.ranked&&!S.submitted){S.submitted=true;submitRun()}
   else if(S.ranked&&S.submitted)extendRun();
   render(); showGameOver(()=>showModal('over'));
@@ -814,27 +875,33 @@ function addLog(kind,text){S.log.unshift({kind,text,week:S.week})}
 function toast(msg,warn,ms){const t=$('#toast');t.textContent=msg;t.className='toast show'+(warn?' warn':'');clearTimeout(toast.h);toast.h=setTimeout(()=>t.className='toast',ms||3200)}
 // The rules, shown on the start screen and in the live-game lobby
 // How to play in three pictures (lobby and intro)
-function howCards(){
-  return `<div class="how">
-    <div><svg viewBox="0 0 200 110" role="img" aria-label="A duct dropped into a green slot in the section grid">
-      <g style="fill:var(--corr);stroke:var(--line)"><rect x="40" y="10" width="40" height="30"/><rect x="80" y="10" width="40" height="30"/><rect x="120" y="10" width="40" height="30"/><rect x="40" y="70" width="40" height="30"/><rect x="80" y="70" width="40" height="30"/><rect x="120" y="70" width="40" height="30"/></g>
-      <g style="fill:var(--valid);stroke:var(--ok)"><rect x="40" y="40" width="40" height="30"/><rect x="80" y="40" width="40" height="30"/><rect x="120" y="40" width="40" height="30"/></g>
-      <rect x="84" y="45" width="72" height="20" rx="3" style="fill:var(--t-acmv)"/></svg>
-      <b>1 · Fit it in its band</b><span>Drag each arrival into a green slot, or tap it, then tap a slot. Pipes low, ducts middle, trays high.</span></div>
-    <div><svg viewBox="0 0 200 110" role="img" aria-label="Two runs on the same level cross where one turns into a room">
-      <line x1="10" y1="12" x2="190" y2="12" style="stroke:var(--ink)" stroke-width="2.5"/>
-      <path d="M10 50 H180 V12" fill="none" style="stroke:var(--t-chw)" stroke-width="8"/><path d="M10 82 H90 V12" fill="none" style="stroke:var(--t-ps)" stroke-width="8"/>
-      <circle cx="90" cy="50" r="14" style="fill:var(--panel);stroke:var(--danger)" stroke-width="4"/></svg>
-      <b>2 · Watch the crossings</b><span>Two runs on the same level that turn across each other must cross. A red ring marks it.</span></div>
-    <div><svg viewBox="0 0 200 110" role="img" aria-label="A crossing timer next to the power-ups">
-      <circle cx="40" cy="55" r="26" style="fill:var(--panel);stroke:var(--soft)" stroke-width="7"/>
-      <path d="M40 29 A26 26 0 1 1 17 67" fill="none" style="stroke:var(--danger)" stroke-width="7" stroke-linecap="round"/>
-      <g style="fill:var(--panel);stroke:var(--line)" stroke-width="2"><circle cx="105" cy="55" r="20"/><circle cx="150" cy="55" r="20"/></g>
-      <path d="M93 56h6l4 8h6l4-8h6" fill="none" style="stroke:var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M140 62c0-12 20-12 20 0" fill="none" style="stroke:var(--ink)" stroke-width="2.5" stroke-linecap="round"/></svg>
-      <b>3 · Decide in time</b><span>Move a run, or use a power-up: Drop, Reroute or Defer. Left alone, a crossing becomes a Clash Area. Three ends the project.</span></div>
-  </div>`;
+// How to play: the four approved steps. Rules only; players learn the sounds by ear, so nothing here describes one.
+const HOW_ART=[`<svg viewBox="0 0 640 440" role="img" aria-label="Section across the corridor: a supply air duct is dragged out of its arrival card into a green slot in layer 3, inside the ducts band"> <rect x="96" y="8" width="320" height="60" rx="10" stroke-width="2.5" style="fill:var(--panel);stroke:var(--accent)"></rect> <rect x="108" y="20" width="108" height="36" rx="4" opacity="0.3" style="fill:var(--t-acmv)"></rect> <text x="232" y="34" font-family="IBM Plex Mono, monospace" font-size="19" font-weight="600" style="fill:var(--ink)">SA-1</text> <text x="232" y="56" font-size="17" style="fill:var(--muted)">Supply air duct · Store</text> <text x="430" y="44" font-size="18" style="fill:var(--muted)">arrives at the riser</text> <rect x="100" y="78" width="300" height="8" style="fill:var(--line)"></rect> <text x="410" y="86" font-size="17" style="fill:var(--muted)">beam soffit</text> <g stroke-width="1.5" style="stroke:var(--line);fill:var(--corr)"> <rect x="100" y="92" width="300" height="70"></rect><rect x="100" y="162" width="300" height="70"></rect> <rect x="100" y="232" width="300" height="70"></rect><rect x="100" y="302" width="300" height="70"></rect> </g> <g stroke-width="2" style="fill:var(--valid);stroke:var(--ok)"> <rect x="100" y="162" width="300" height="70"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.12;0.2;0.5;0.56;1" dur="5s" repeatCount="indefinite"></animate></rect> <rect x="100" y="232" width="300" height="70"><animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.12;0.2;0.5;0.56;1" dur="5s" repeatCount="indefinite"></animate></rect> </g> <g stroke-width="1.5" style="stroke:var(--line)"><line x1="160" y1="92" x2="160" y2="372"></line><line x1="220" y1="92" x2="220" y2="372"></line><line x1="280" y1="92" x2="280" y2="372"></line><line x1="340" y1="92" x2="340" y2="372"></line></g> <line x1="100" y1="380" x2="400" y2="380" stroke-width="2" stroke-dasharray="7 5" style="stroke:var(--ink)"></line> <text x="410" y="385" font-size="17" style="fill:var(--muted)">service floor</text> <g font-size="18" font-weight="600" text-anchor="end" style="fill:var(--muted)"> <text x="90" y="132">Layer 4</text><text x="90" y="202">Layer 3</text><text x="90" y="272">Layer 2</text><text x="90" y="342">Layer 1</text> </g> <circle cx="190" cy="337" r="16" style="fill:var(--t-ps)"></circle> <circle cx="310" cy="267" r="16" style="fill:var(--t-chw)"></circle> <rect x="226" y="119" width="108" height="16" rx="3" style="fill:var(--t-elv)"></rect> <rect x="166" y="179" width="108" height="36" rx="4" style="fill:var(--t-acmv)"> <animateTransform attributeName="transform" type="translate" values="-58,-159;-58,-159;0,0;0,0" keyTimes="0;0.2;0.42;1" dur="5s" repeatCount="indefinite"></animateTransform> </rect> <g fill="none" stroke-width="3" stroke-linecap="round"> <path d="M448 92 h8 v140 h-8" style="stroke:var(--t-elv)"></path> <path d="M502 162 h8 v140 h-8" style="stroke:var(--t-acmv)"></path> <path d="M556 232 h8 v140 h-8" style="stroke:var(--t-chw)"></path> </g> <g font-size="19" font-weight="700"> <text x="468" y="128" style="fill:var(--ink)">trays</text> <text x="522" y="198" style="fill:var(--ink)">ducts</text> <text x="576" y="268" style="fill:var(--ink)">pipes</text> </g> <text x="100" y="416" font-size="18" style="fill:var(--muted)">◀ room side</text> <text x="400" y="416" font-size="18" text-anchor="end" style="fill:var(--muted)">open side ▶</text> <text x="440" y="416" font-size="18" style="fill:var(--muted)">bands overlap</text> </svg>`,
+`<svg viewBox="0 0 640 440" role="img" aria-label="Plan of the corridor: a cold water run turns up into the Store and cuts across a chilled water run in the same layer that carries on to the Office; a red ring counts down"> <g stroke-width="1.5" style="stroke:var(--line)"> <rect x="120" y="20" width="150" height="80" rx="8" style="fill:var(--room)"></rect> <rect x="290" y="20" width="150" height="80" rx="8" style="fill:var(--room)"></rect> <rect x="460" y="20" width="150" height="80" rx="8" style="fill:var(--room)"></rect> </g> <g font-size="19" font-weight="600" text-anchor="middle" style="fill:var(--ink)"><text x="195" y="66">Ward 1</text><text x="365" y="66">Store</text><text x="535" y="66">Office</text></g> <line x1="90" y1="110" x2="630" y2="110" stroke-width="3" style="stroke:var(--ink)"></line> <rect x="20" y="120" width="64" height="230" rx="8" style="fill:var(--riser)"></rect> <text x="52" y="242" font-family="IBM Plex Mono, monospace" font-size="17" font-weight="600" text-anchor="middle" style="fill:var(--ink)">RISER</text> <path d="M84 170 H535 V110" fill="none" stroke-width="10" style="stroke:var(--t-chw)"></path> <path d="M84 230 H365 V110" fill="none" stroke-width="10" style="stroke:var(--t-ps)"></path> <g font-family="IBM Plex Mono, monospace" font-size="18" font-weight="600"> <text x="96" y="160" style="fill:var(--ink)">CHW-1 · layer 2</text> <text x="96" y="256" style="fill:var(--ink)">CW-1 · layer 2</text> </g> <g> <circle cx="365" cy="170" r="30" stroke-width="7" style="fill:var(--panel);stroke:var(--soft)"></circle> <circle cx="365" cy="170" r="30" fill="none" stroke-width="7" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 365 170)" style="stroke:var(--danger)"> <animate attributeName="stroke-dashoffset" values="0;100" dur="6s" repeatCount="indefinite"></animate> </circle> <text x="365" y="177" font-size="24" font-weight="800" text-anchor="middle" style="fill:var(--danger)">20</text> </g> <g> <rect x="402" y="196" width="220" height="62" rx="10" style="fill:var(--ink)"></rect> <text x="416" y="222" font-family="IBM Plex Mono, monospace" font-size="19" font-weight="700" style="fill:var(--bg)">CW-1 × CHW-1</text> <text x="416" y="246" font-size="18" style="fill:var(--bg)">Move one, or use a power-up</text> </g> <line x1="90" y1="360" x2="630" y2="360" stroke-width="2" style="stroke:var(--ink)"></line>  </svg>`,
+`<svg viewBox="0 0 640 440" role="img" aria-label="Three ways a crossing ends: move a run and the ring turns into a check; arm Drop and click the crossing, so one run dips under the other; or leave it and it hardens into a grey Clash Area"> <g stroke-width="1.5" style="stroke:var(--line);fill:var(--panel)"> <rect x="6" y="6" width="180" height="300" rx="14"></rect><rect x="196" y="6" width="250" height="300" rx="14"></rect><rect x="456" y="6" width="178" height="300" rx="14"></rect> </g> <g stroke-width="2.5" style="stroke:var(--ink)"><line x1="18" y1="60" x2="174" y2="60"></line><line x1="208" y1="60" x2="434" y2="60"></line><line x1="468" y1="60" x2="622" y2="60"></line></g> <path d="M18 130 H150 V60" fill="none" stroke-width="8" style="stroke:var(--t-chw)"></path> <path d="M18 190 H90 V60" fill="none" stroke-width="8" style="stroke:var(--t-ps)"> <animate attributeName="d" values="M18 190 H90 V60;M18 190 H90 V60;M18 95 H90 V60;M18 95 H90 V60" keyTimes="0;0.3;0.45;1" dur="6s" repeatCount="indefinite"></animate> </path> <g><circle cx="90" cy="130" r="20" stroke-width="5" style="fill:var(--panel);stroke:var(--danger)"></circle> <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.46;1" dur="6s" repeatCount="indefinite"></animate></g> <g opacity="0"><circle cx="90" cy="130" r="20" stroke-width="5" style="fill:var(--panel);stroke:var(--ok)"></circle> <path d="M81 131l6 6 12-14" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--ok)"></path> <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.46;0.52;1" dur="6s" repeatCount="indefinite"></animate></g> <path d="M208 190 H300 V60" fill="none" stroke-width="8" style="stroke:var(--t-ps)"></path> <path d="M282 130 H318" fill="none" stroke-width="18" style="stroke:var(--panel)"></path> <path d="M208 130 H420 V60" fill="none" stroke-width="8" style="stroke:var(--t-chw)"></path> <g> <circle cx="300" cy="130" r="30" fill="none" stroke-width="3" opacity="0.4" style="stroke:var(--accent)"></circle> <circle cx="300" cy="130" r="20" stroke-width="5" style="fill:var(--panel);stroke:var(--accent)"></circle> <circle cx="300" cy="125" r="4" style="fill:var(--accent)"></circle> <path d="M290 128h4l3 6h6l3-6h4" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--accent)"></path> <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.44;1" dur="6s" repeatCount="indefinite"></animate> </g> <g opacity="0"> <path d="M300 112 V148" fill="none" stroke-width="3.5" stroke-dasharray="5 4" style="stroke:var(--t-ps)"></path> <circle cx="318" cy="112" r="10" stroke-width="2.5" style="fill:var(--panel);stroke:var(--ok)"></circle> <text x="318" y="117" font-size="17" font-weight="800" text-anchor="middle" style="fill:var(--ok)">↓</text> <rect x="318" y="148" width="118" height="68" rx="8" stroke-width="1.5" style="fill:var(--card);stroke:var(--line)"></rect> <text x="326" y="166" font-size="17" font-weight="600" style="fill:var(--muted)">side view</text> <circle cx="377" cy="186" r="7" style="fill:var(--t-chw)"></circle> <path d="M328 186 H360 L367 202 H387 L394 186 H428" fill="none" stroke-width="4" stroke-linejoin="round" style="stroke:var(--t-ps)"></path> <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.44;0.5;1" dur="6s" repeatCount="indefinite"></animate> </g> <g stroke-width="2" style="fill:var(--card)"> <circle cx="262" cy="258" r="22" stroke-width="3" style="stroke:var(--accent)"></circle> <circle cx="321" cy="258" r="22" style="stroke:var(--line)"></circle><circle cx="380" cy="258" r="22" style="stroke:var(--line)"></circle> </g> <circle cx="262" cy="258" r="28" fill="none" stroke-width="3" opacity="0.5" style="stroke:var(--accent)"> <animate attributeName="opacity" values="0.5;0.5;0;0" keyTimes="0;0.4;0.44;1" dur="6s" repeatCount="indefinite"></animate></circle> <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"> <path d="M250 258h4l3 7h10l3-7h4" style="stroke:var(--accent)"></path><circle cx="262" cy="251" r="3" stroke="none" style="fill:var(--accent)"></circle> <path d="M309 265c0-14 24-14 24 0M327 262l6 3 2-6" style="stroke:var(--ink)"></path> <circle cx="380" cy="260" r="9" style="stroke:var(--ink)"></circle><path d="M380 255v5l3 3M376 247h8" style="stroke:var(--ink)"></path> </g> <text x="262" y="298" font-size="17" font-weight="700" text-anchor="middle" style="fill:var(--accent)">armed</text> <path d="M468 130 H596 V60" fill="none" stroke-width="8" style="stroke:var(--t-chw)"></path> <path d="M468 190 H540 V60" fill="none" stroke-width="8" style="stroke:var(--t-ps)"></path> <g><circle cx="540" cy="130" r="22" stroke-width="6" style="fill:var(--panel);stroke:var(--soft)"></circle> <circle cx="540" cy="130" r="22" fill="none" stroke-width="6" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 540 130)" style="stroke:var(--danger)"> <animate attributeName="stroke-dashoffset" values="0;100;100" keyTimes="0;0.6;1" dur="6s" repeatCount="indefinite"></animate></circle> <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.6;0.62;1" dur="6s" repeatCount="indefinite"></animate></g> <g opacity="0"><rect x="518" y="108" width="44" height="44" rx="9" style="fill:var(--area)"></rect> <path d="M531 121l18 18M549 121l-18 18" stroke-width="4" stroke-linecap="round" style="stroke:var(--card)"></path> <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.62;0.66;1" dur="6s" repeatCount="indefinite"></animate></g> <g font-size="22" font-weight="700" text-anchor="middle" style="fill:var(--ink)"> <text x="96" y="340">Move a run</text><text x="321" y="340">Use a power-up</text><text x="545" y="340">Leave it</text> </g> <g font-size="18" text-anchor="middle" style="fill:var(--muted)"> <text x="96" y="364">to another lane</text><text x="96" y="384">or layer</text> <text x="321" y="364">Drop is armed: click the</text><text x="321" y="384">crossing, CW-1 dips under</text> <text x="545" y="364">a Clash Area:</text><text x="545" y="384">logged, not solved</text> </g> </svg>`,
+`<svg viewBox="0 0 640 440" role="img" aria-label="Weeks: a week dial fills, the meeting offers two power-ups, the architect adds an Extra Layer in weeks 2 and 4, and a knock-on moves a run to another room"> <g stroke-width="1.5" style="stroke:var(--line);fill:var(--panel)"> <rect x="6" y="6" width="307" height="206" rx="14"></rect><rect x="327" y="6" width="307" height="206" rx="14"></rect> <rect x="6" y="226" width="307" height="206" rx="14"></rect><rect x="327" y="226" width="307" height="206" rx="14"></rect> </g> <circle cx="90" cy="100" r="44" stroke-width="9" style="fill:var(--card);stroke:var(--soft)"></circle> <circle cx="90" cy="100" r="44" fill="none" stroke-width="9" pathLength="100" stroke-dasharray="100 100" transform="rotate(-90 90 100)" style="stroke:var(--accent)"> <animate attributeName="stroke-dashoffset" values="100;0" dur="5s" repeatCount="indefinite"></animate></circle> <text x="90" y="108" font-family="IBM Plex Mono, monospace" font-size="26" font-weight="700" text-anchor="middle" style="fill:var(--ink)">W1</text> <text x="152" y="92" font-size="22" font-weight="700" style="fill:var(--ink)">Week 1</text> <text x="152" y="116" font-size="18" style="fill:var(--muted)">45 seconds, then</text> <text x="152" y="136" font-size="18" style="fill:var(--muted)">a meeting</text> <text x="26" y="190" font-size="19" font-weight="700" style="fill:var(--ink)">The clock</text> <g><rect x="352" y="30" width="110" height="128" rx="12" stroke-width="3" style="fill:var(--card);stroke:var(--accent)"></rect> <circle cx="407" cy="72" r="22" stroke-width="2" style="fill:var(--panel);stroke:var(--line)"></circle> <path d="M395 72h4l3 7h10l3-7h4" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--ink)"></path><circle cx="407" cy="65" r="3" style="fill:var(--ink)"></circle> <text x="407" y="124" font-size="19" font-weight="700" text-anchor="middle" style="fill:var(--ink)">Drop</text></g> <g><rect x="478" y="30" width="110" height="128" rx="12" stroke-width="2" style="fill:var(--card);stroke:var(--line)"></rect> <circle cx="533" cy="72" r="22" stroke-width="2" style="fill:var(--panel);stroke:var(--line)"></circle> <circle cx="533" cy="74" r="9" fill="none" stroke-width="2.2" style="stroke:var(--ink)"></circle><path d="M533 69v5l3 3M529 61h8" fill="none" stroke-width="2.2" stroke-linecap="round" style="stroke:var(--ink)"></path> <text x="533" y="124" font-size="19" font-weight="700" text-anchor="middle" style="fill:var(--ink)">Defer</text></g> <text x="347" y="190" font-size="19" font-weight="700" style="fill:var(--ink)">The meeting: pick one</text> <g stroke-width="1.5" style="stroke:var(--line);fill:var(--corr)"><rect x="40" y="252" width="160" height="30"></rect><rect x="40" y="282" width="160" height="30"></rect><rect x="40" y="342" width="160" height="30"></rect></g> <rect x="40" y="312" width="160" height="30" stroke-width="2.5" stroke-dasharray="6 4" style="fill:color-mix(in srgb,var(--accent) 16%,var(--panel));stroke:var(--accent)"> <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.25;0.4;1" dur="5s" repeatCount="indefinite"></animate></rect> <text x="214" y="333" font-size="18" font-weight="700" style="fill:var(--accent)">+1 layer</text> <text x="26" y="410" font-size="19" font-weight="700" style="fill:var(--ink)">Weeks 2 and 4: Extra Layer</text> <line x1="347" y1="262" x2="614" y2="262" stroke-width="2.5" style="stroke:var(--ink)"></line> <g stroke-width="1.5" style="stroke:var(--line);fill:var(--room)"><rect x="420" y="236" width="70" height="26" rx="5"></rect><rect x="520" y="236" width="70" height="26" rx="5"></rect></g> <path d="M347 330 H455 V262" fill="none" stroke-width="8" style="stroke:var(--t-chw)"> <animate attributeName="d" values="M347 330 H455 V262;M347 330 H455 V262;M347 330 H555 V262;M347 330 H555 V262" keyTimes="0;0.35;0.55;1" dur="5s" repeatCount="indefinite"></animate></path> <path d="M470 300 q35 -26 70 0" fill="none" stroke-width="2.5" stroke-dasharray="5 4" style="stroke:var(--t-fire)"></path> <path d="M534 293 l7 8 -10 3" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--t-fire)"></path> <text x="347" y="390" font-size="18" style="fill:var(--muted)">Another trade moved a room.</text> <text x="347" y="410" font-size="19" font-weight="700" style="fill:var(--ink)">From week 2: knock-ons</text> </svg>`];
+const HOW=[
+  {t:'Fit each service in its band',b:`<p>Services arrive at the riser, one card at a time. Drag each one into a green slot in the <b>section</b>, the view across the corridor.</p>
+    <dl><dt>Layer</dt><dd>One row of height. Layer 1 is at the bottom.</dd><dt>Band</dt><dd>The layers a trade agreed to use: pipes low, ducts middle, trays high. Bands can share a layer.</dd></dl>`},
+  {t:'Watch for crossings',b:`<p>In the <b>plan</b>, the view from above, each run turns up into its room. If another run in the <b>same layer</b> sits nearer the rooms and carries on past that door, the two must cross.</p>
+    <p>A red ring marks the <b>crossing</b> and starts counting down.</p>`},
+  {t:'Decide before the ring runs out',b:`<p>Move one of the runs to another lane or layer, or use a <b>power-up</b>:</p>
+    <dl><dt>Drop</dt><dd>one run dips under the other where it turns.</dd><dt>Reroute</dt><dd>send a run through the next corridor.</dd><dt>Defer</dt><dd>put it on hold until the end of next week.</dd></dl>
+    <p>Leave it, and it hardens into a <b>Clash Area</b>: logged, not solved. Both runs get stuck. Each one is a strike: the third stalls the project.</p>`},
+  {t:'Every week ends in a meeting',b:`<p>A week lasts ${CONFIG.weekLen} seconds. At the meeting you pick one power-up to take back to site.</p>
+    <p>In weeks 2 and 4 the architect gives an <b>Extra Layer</b>, and you choose which band gets it. From week 2, <b>knock-ons</b> arrive: another trade moves one of your runs to a different room.</p>
+    <p><b>Your score is services fitted.</b> Ties go to fewer Clash Areas, then more weeks.</p>`}
+];
+// where: intro (practice or ranked), lobby, or howto (opened from the pause menu)
+function howBox(where){
+  const n=ui.how||1,st=HOW[n-1];
+  const last=where==='howto'?'<button class="primary" data-act="hclose">Back to the game</button>':'';
+  return `<div class="htp" id="htp" data-where="${where}"><div class="hart">${HOW_ART[n-1]}</div>
+    <div class="htext"><p class="eyebrow">HOW TO PLAY · STEP ${n} OF 4</p><h3>${st.t}</h3>${st.b}
+      <div class="hnav"><div class="hdots" role="group" aria-label="Steps">${[1,2,3,4].map(i=>`<button type="button" data-act="hgo" data-n="${i}" aria-label="Step ${i}"${i===n?' class="on" aria-current="step"':''}>${i}</button>`).join('')}</div>
+        ${n>1?'<button type="button" data-act="hprev">Back</button>':''}${n<4?'<button type="button" class="primary" data-act="hnext">Next</button>':last}</div></div></div>`;
 }
+function howStep(n){ui.how=Math.max(1,Math.min(4,n));const box=$('#htp');if(box)box.outerHTML=howBox(box.dataset.where)}
 // The landing corridor: three runs draw into three rooms, two cross, and the crossing is decided. 9 s loop.
 const LANDING_SVG=`<svg class="scene" viewBox="0 0 760 640" role="img" aria-label="A corridor drawing itself: three services run from the riser into three rooms, two of them cross, and the crossing is decided">
   <rect x="260" y="70" width="96" height="96" rx="12" style="fill:var(--tile-shadow)"/><rect x="250" y="60" width="96" height="96" rx="12" style="fill:var(--tile)"/>
@@ -870,7 +937,7 @@ function startLanding(){
 function scrBar(step){
   const st=step?`<ol class="steps">${['PIN','Nickname','Lobby'].map((t,i)=>`<li class="${i+1===step?'on':i+1<step?'done':''}">${i+1} ${t}</li>`).join('')}</ol>`:'';
   return `<div class="scrbar"><button class="brand" data-act="home" aria-label="Back to the start">Mini MEP<i class="brandsq"></i></button>
-    <div class="right">${st}<button class="tool" data-act="theme" aria-label="${isDark()?'Switch to light theme':'Switch to dark theme'}"><svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg></button></div></div>`;
+    <div class="right">${st}${soundBtn()}<button class="tool" data-act="theme" aria-label="${isDark()?'Switch to light theme':'Switch to dark theme'}"><svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg></button></div></div>`;
 }
 const IDEAS=['DuctTape','PipeDream','TrayRunner','SoffitSam','RiserRita','Hangers','CableGuy','SleeveSam'];
 const SCREENS=new Set(['landing','join','nick','lobby','intro','closed']);
@@ -884,16 +951,18 @@ function showModal(kind){
     const menu=ui.landMenu==='choose'
       ?'<button data-act="topin">With a game PIN</button><button data-act="solo">On my own</button><button class="back" data-act="landback">← Back</button>'
       :'<button data-act="play">Play</button>';
-    h=`<div class="land"><div><h1>Mini MEP<i class="brandsq"></i></h1><p class="tagline">Fit the services. Decide the crossings.</p>
+    h=`<div class="land"><div class="ltools"><button class="tool" data-act="theme" aria-label="${isDark()?'Switch to light theme':'Switch to dark theme'}" title="Light or dark"><svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg></button></div><div><h1>Mini MEP<i class="brandsq"></i></h1><p class="tagline">Fit the services. Decide the crossings.</p>
       <nav class="lmenu" aria-label="Start">${menu}</nav></div>${LANDING_SVG}<p class="foot">A puzzle about the ceiling above a hospital corridor. Everything in it is fictional.</p></div>`;
   }else if(kind==='intro'){
     const ranked=NET.joined;
     h=`<div class="scr">${scrBar(ranked?3:0)}<div class="scard wide">
       <div>${ranked?`<p class="eyebrow">GAME ${NET.pin} · PLAYING AS ${esc(NET.nick).toUpperCase()}</p>`:''}<h2>${ranked?'Ready when you are':'Practice'}</h2>
         <p class="muted" style="margin-top:8px">${ranked?'Everyone in this game gets the same arrivals. Your first stall is your score.':'Nothing is saved online. Play as often as you like.'}</p></div>
-      ${howCards()}
-      <p class="muted" style="font-size:15px">Keys: 1 / 2 / 3 use a power-up · Esc cancels · Space pauses</p>
-      <div class="bar"><button class="primary big" data-act="start">${ranked?'Start ranked game':'Start practice'}</button>${ranked?'':'<button data-act="home">Back to the start</button>'}</div>
+      ${howBox('intro')}
+      <p class="muted" style="font-size:15px">Keys: 1 / 2 / 3 use a power-up · Esc cancels · Space pauses · ← → turn the steps</p>
+      <div class="bar">${ranked?'<button class="primary big" data-act="start">Start ranked game</button>'
+        :tutDone()?'<button class="primary big" data-act="start">Start practice</button><button class="big" data-act="tut">Tutorial (3 min)</button><button data-act="home">Back to the start</button>'
+        :'<button class="primary big" data-act="tut">Tutorial (3 min)</button><button class="big" data-act="start">Start practice</button><button data-act="home">Back to the start</button>'}</div>
     </div></div>`;
   }else if(kind==='join'){
     h=`<div class="scr">${scrBar(1)}<div class="scard">
@@ -921,7 +990,7 @@ function showModal(kind){
         <div><h2>You're in, ${esc(NET.nick)}!</h2><p class="muted" style="margin-top:6px">Waiting for the host to press Start · <b id="lobbyN">${lobbyCount()}</b></p></div>
         <button data-act="leave">Leave this game</button></div>
       <div class="lobby" id="lobby">${chips}</div>
-      <h3 style="margin:0;font-size:22px">How to play</h3>${howCards()}
+      ${howBox('lobby')}
     </div></div>`;
   }else if(kind==='closed'){
     const st=standings().slice(0,8);
@@ -933,7 +1002,7 @@ function showModal(kind){
   }else if(kind==='week'){
     const w=S.week,a=S.areas.length;
     h=`<div class="meet"><p class="eyebrow">COORDINATION MEETING</p><h2>End of week ${w}</h2>
-      <p class="meetsub">${S.connected} services fitted · ${S.decisions} decisions named · ${a} Clash Area${a===1?'':'s'}</p>
+      <p class="meetsub">${S.connected} service${S.connected===1?'':'s'} fitted · ${S.decisions} decision${S.decisions===1?'':'s'} named · ${a} Clash Area${a===1?'':'s'}</p>
       <div class="pucards">${S.offer.map(k=>`<button class="pucard" data-act="offer" data-k="${k}"><span class="ci"><svg><use href="#ic-c-${k}"/></svg></span><b>${CARDS[k].name}</b><span>${CARDS[k].desc}</span><small>You have ${S.hand[k]}</small></button>`).join('')}</div>
       <div class="meetbar"><button class="peekbtn" data-act="peek"><svg><use href="#ic-eye"/></svg>Peek at the corridor</button><span>or hold P · pick one to take back to site</span></div></div>`;
   }else if(kind==='height'){
@@ -943,18 +1012,25 @@ function showModal(kind){
         <span class="nums"><span class="w"><b>${n.waiting}</b>waiting</span><span class="f"><b>${n.free}</b>free slot${n.free===1?'':'s'}</span></span>
         <p>${n.free===0?`Every ${nm.slice(0,-1)} slot is taken.`:n.waiting?`${n.waiting} ${n.waiting===1?'is':'are'} waiting at the riser.`:'Nothing waiting for this band.'}</p></button>`};
     h=`<div class="meet"><p class="eyebrow">WEEK ${S.week+1} · A GIFT FROM THE ARCHITECT</p><h2>Extra Layer</h2>
-      <p class="arch">"Feeling generous today. I'll drop the ceiling 100 mm, so you get one more layer. Don't tell the client."</p>
+      <p class="arch">"Feeling generous today. I'll lower the ceiling 100 mm, so you get one more layer. Don't tell the client."</p>
       <p class="meetsub">Agree which band gets it. ${last?'This is the last one.':`The next one comes in week ${lastWk}, and that's the last.`}</p>
       <div class="bandcards">${['pipe','duct','tray'].map(card).join('')}</div>
       <div class="meetbar"><button class="peekbtn" data-act="peek"><svg><use href="#ic-eye"/></svg>Peek at the corridor</button><span>or hold P</span></div></div>`;
+  }else if(kind==='howto'){
+    h=`<h2 style="margin-bottom:18px">How to play</h2>${howBox('howto')}`;
+  }else if(kind==='tutdone'){
+    h=`<p class="eyebrow">TUTORIAL DONE</p><h2>You're ready</h2>
+    <p>Fit as many services as you can. Decide every crossing before its ring runs out. Three Clash Areas stall the project.</p>
+    <div class="bar"><button class="primary big" data-act="tutpractice">Start practice</button><button class="big" data-act="tutpin">Join with a PIN</button><button class="linkbtn" data-act="tut">Replay the tutorial</button></div>`;
   }else if(kind==='paused'){
     h=`<h2>Paused</h2><p>Press Space or Resume to carry on.</p>
-    <div class="pausebar"><button class="primary" data-act="resume">Resume</button><button data-act="log">Decision log</button>${NET.pin?'<button data-act="board">Leaderboard</button>':''}<button class="tool" data-act="theme" aria-label="${isDark()?'Switch to light theme':'Switch to dark theme'}" title="Light or dark"><svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg></button><button data-act="restart">Restart</button><button class="menubtn" data-act="menu">${menuLabel()}</button></div>`;
+    <div class="pausebar"><button class="primary" data-act="resume">Resume</button><button data-act="log">Decision log</button>${NET.pin?'<button data-act="board">Leaderboard</button>':''}<button data-act="howto">How to play</button><button class="tool" data-act="theme" aria-label="${isDark()?'Switch to light theme':'Switch to dark theme'}" title="Light or dark"><svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg></button>${soundBtn()}<button data-act="restart">Restart</button><button class="menubtn" data-act="menu">${menuLabel()}</button></div>
+    <label class="vol">Volume<input type="range" id="vol" min="0" max="100" step="5" value="${sndVol()}" aria-label="Volume"><output id="volN">${sndVol()}%</output></label>`;
   }else if(kind==='over'){
     const o=S.over,best=o.prevBest,a=S.areas.length;
     const lesson=o.reason==='full'
       ?{icon:'full',title:'The corridor ran out of height',text:`No slot is left for ${o.id} (${TYPES[o.type].name}). Moving runs can't fix this: it's a space-planning call for the design team. Reroute some services, give the corridor more height, or carry less in it.`}
-      :{icon:'area',title:'Three Clash Areas',text:'Each one named a place, not a decision. Next time, move a run or use a power-up before the ring runs out.'};
+      :{icon:'area',title:'Three Clash Areas',text:'Each one marked the spot but solved nothing. Next time, move a run or use a power-up before the ring runs out.'};
     const used=['drop','reroute','defer'].filter(k=>S.used[k]).map(k=>`<span class="usedpu"><span class="ci"><svg><use href="#ic-c-${k}"/></svg></span>${CARDS[k].name} × ${S.used[k]}</span>`)
       .concat((S.layerPicks||[]).map(b=>`<span class="usedpu xl"><span class="ci"><svg><use href="#ic-c-height"/></svg></span>Extra Layer: ${BAND_NAME[b]}</span>`)).join('');
     const left=`<section class="res">
@@ -972,15 +1048,22 @@ function showModal(kind){
       :`<section class="resside"><h3>Practice</h3><div class="pbest">${best?`<span>Previous best</span><b>${best.connected}</b>`:'<span>Your first practice game</span>'}${!best||S.connected>best.connected?'<em>New best</em>':''}</div><p class="muted">Practice scores stay on this device. Join a game with a PIN to get on a leaderboard.</p></section>`;
     h=`<div class="results">${left}${right}</div>`;
   }
+  clearTimeout(ui.ovT);$('#ov').classList.toggle('wide',kind==='howto');
   m.innerHTML=h; $('#ov').classList.toggle('screen',SCREENS.has(kind)); $('#ov').classList.toggle('meeting',kind==='week'||kind==='height'); $('#ov').classList.toggle('results',kind==='over'); $('#ov').classList.add('show');
   const f=m.querySelector('#pin')||m.querySelector('#nick')||m.querySelector('.lmenu button')||m.querySelector('button');if(f)f.focus();
   if(kind==='join')pinBoxes();
   if(kind==='landing'){drawLanding();startLanding()}
 }
-function hideModal(){S.modal=null;$('#ov').classList.remove('show','screen','meeting','peeking','results');ui.peek=false;$('#peekbar').hidden=true}
+function hideModal(){
+  const ov=$('#ov'),wasScreen=ov.classList.contains('show')&&ov.classList.contains('screen');
+  S.modal=null;ov.classList.remove('show','peeking');ui.peek=false;$('#peekbar').hidden=true;
+  clearTimeout(ui.ovT);ui.ovT=setTimeout(()=>{if(!ov.classList.contains('show'))ov.classList.remove('screen','meeting','results','wide')},460);
+  if(wasScreen){const w=$('.wrap');w.classList.remove('enter');void w.offsetWidth;w.classList.add('enter');setTimeout(()=>w.classList.remove('enter'),650)}
+}
 // Peek at the corridor during the week meeting: the choice hides, the paused board shows, and a bar leads back
 function setPeek(on){
   if(on&&S.modal!=='week'&&S.modal!=='height')return;
+  if(on&&!ui.peek)snd('peek');
   ui.peek=!!on;$('#ov').classList.toggle('peeking',ui.peek);$('#peekbar').hidden=!ui.peek;
   if(ui.peek){$('#peekline').textContent=S.modal==='height'?'Choosing a band for the Extra Layer: pipes, ducts or trays':'Choosing a power-up to take back to site';render()}
   else{const f=$('#modal button');if(f)f.focus()}
@@ -997,6 +1080,13 @@ $('#modal').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act;
   if(a==='start'){startGame();return}
+  if(a==='hnext'||a==='hprev'){howStep((ui.how||1)+(a==='hnext'?1:-1));return}
+  if(a==='hgo'){howStep(+b.dataset.n);return}
+  if(a==='howto'){ui.howFrom=S.modal==='paused'?'paused':null;ui.how=1;showModal('howto');return}
+  if(a==='hclose'){if(ui.howFrom)showModal(ui.howFrom);else{hideModal();render()}return}
+  if(a==='tut'){startTutorial();return}
+  if(a==='tutpractice'){NET.practice=true;newGame();hideModal();render();return}
+  if(a==='tutpin'){leaveGame();if(NET.expected&&!NET.failed)showModal('join');return}
   if(a==='pin'){submitPin();return}
   if(a==='join'){joinWithNick();return}
   if(a==='practice'){NET.practice=true;newGame();return}
@@ -1014,6 +1104,7 @@ $('#modal').addEventListener('click',e=>{
   // From the pause menu: a drawer opens and the game stays paused until it closes
   if(a==='log'||a==='board'){ui.logOpen=a==='log';ui.boardOpen=a==='board';if(a==='board')renderBoard();$('#ov').classList.remove('show');S.modal='drawer';renderPanels();return}
   if(a==='theme'){toggleTheme();if(S.modal==='paused')showModal('paused');else{b.innerHTML=`<svg><use href="#ic-t-${isDark()?'sun':'moon'}"/></svg>`;b.setAttribute('aria-label',isDark()?'Switch to light theme':'Switch to dark theme')}return}
+  if(a==='sound'){toggleSound();return}
   if(a==='restart'){newGame();return}
   if(a==='menu'){
     // Leaving a ranked game before it stalls throws the run away, so that takes a second tap
@@ -1034,7 +1125,7 @@ function oneMoreChance(){
   const o=S.over;S.chances--;S.over=null;
   if(o.reason==='full'){
     const r=byId(o.id);if(r)S.runs=S.runs.filter(x=>x!==r);
-    addLog('decision',`Escalated: ${o.id} rerouted through another corridor. Owner: design team.`);
+    addLog('decision',`Escalated: the design team reroutes ${o.id} through another corridor.`);
     toast(`One more chance: ${o.id} rerouted. Watch the height.`);
   }else if(S.areas.length){
     const a=S.areas.pop(),st=S.cx[a.key];
@@ -1076,7 +1167,7 @@ function renderQueue(){
 function renderSec(){
   const svg=$('#sec'),N=S.lanes,L=S.L,gw=N*CELL,gh=L*CELL,Wd=SX+gw+96,Ht=SY+gh+74;
   svg.setAttribute('viewBox',`0 0 ${Wd} ${Ht}`);
-  const active=drag?byId(drag.id):S.sel?byId(S.sel):null;
+  const active=drag?byId(drag.id):S.sel?byId(S.sel):S.tut&&S.tut.focus?byId(S.tut.focus):null;
   const cover=new Set();
   if(active)for(const s of validSlots(active))for(let i=s.lane;i<s.lane+W(active);i++)cover.add(i+','+s.layer);
   let h=`<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="var(--beam)"/><line x1="0" y1="0" x2="0" y2="8" stroke="var(--panel)" stroke-width="2"/></pattern></defs>`;
@@ -1086,7 +1177,7 @@ function renderSec(){
   for(let layer=0;layer<L;layer++){
     const y=SY+(L-1-layer)*CELL;
     for(let lane=0;lane<N;lane++)h+=`<rect class="cell${cover.has(lane+','+layer)?' valid':''}" x="${SX+lane*CELL}" y="${y}" width="${CELL}" height="${CELL}"/>`;
-    h+=`<text class="lbl" x="${SX-10}" y="${y+CELL/2+4}" text-anchor="end">L${layer+1}</text>`;
+    h+=`<text class="lbl" x="${SX-10}" y="${y+CELL/2+4}" text-anchor="end">Layer ${layer+1}</text>`;
     // Band label: click an empty layer's label to re-band it
     const em=layerEmpty(layer);
     h+=`<g class="${em?'bandlbl':''}" data-band="${layer}"><rect class="hit" x="${SX+gw+8}" y="${y+4}" width="92" height="${CELL-8}"/>
@@ -1117,6 +1208,7 @@ function cellAt(p,r){
   return{lane,layer};
 }
 function drawGhost(r,p){$('#ghost').innerHTML=`<g opacity=".75">${shapeSVG(r,p.x-W(r)*CELL/2,p.y-CELL/2)}</g>`}
+function refuse(r,c){toast(S.tut?'Follow the coach: use the highlighted slot.':placeMsg(r,c));snd('invalid')}
 function placeMsg(r,c){return band(r.type).includes(c.layer)?'That slot is taken.':`${TYPES[r.type].name} has to sit in its band. Use the highlighted slots.`}
 const sec=$('#sec');
 sec.addEventListener('pointerdown',e=>{
@@ -1130,7 +1222,7 @@ sec.addEventListener('pointerdown',e=>{
     if(r.fixed){toast(`${r.id} is a gravity drain. It's fixed once placed because it needs its fall.`,true);return}
     drag={id:r.id,x0:p.x,y0:p.y,moved:false}; sec.setPointerCapture(e.pointerId); render(); return;
   }
-  if(S.sel){const r=byId(S.sel),c=r&&cellAt(p,r);if(r&&c&&canPlace(r,c.lane,c.layer))place(r,c.lane,c.layer);else{if(r&&c)toast(placeMsg(r,c));S.sel=null;render()}}
+  if(S.sel){const r=byId(S.sel),c=r&&cellAt(p,r);if(r&&c&&canPlace(r,c.lane,c.layer))place(r,c.lane,c.layer);else{if(r&&c)refuse(r,c);S.sel=null;render()}}
 });
 sec.addEventListener('pointermove',e=>{
   if(!drag)return;const p=svgPt(sec,e);
@@ -1143,7 +1235,7 @@ sec.addEventListener('pointerup',e=>{
   if(moved){
     const c=cellAt(p,r);
     if(c&&canPlace(r,c.lane,c.layer)){if(!(r.placed&&r.lane===c.lane&&r.layer===c.layer))place(r,c.lane,c.layer);else render()}
-    else{if(c&&!(r.placed&&r.lane===c.lane&&r.layer===c.layer))toast(placeMsg(r,c));render()}
+    else{if(c&&!(r.placed&&r.lane===c.lane&&r.layer===c.layer))refuse(r,c);render()}
   }else{
     S.sel=S.sel===r.id?null:r.id;
     if(S.sel&&e.pointerType!=='mouse'&&!S.seen.tapHint){S.seen.tapHint=1;toast('Now tap a green slot to place it.')}
@@ -1168,7 +1260,7 @@ function qUp(e){
   removeEventListener('pointermove',qMove);removeEventListener('pointercancel',qCancel);
   if(!drag)return;const r=byId(drag.id),moved=drag.moved;drag=null;$('#ghost').innerHTML='';
   if(!r){render();return}
-  if(moved){const c=cellAt(svgPt(sec,e),r);if(c&&canPlace(r,c.lane,c.layer))place(r,c.lane,c.layer);else{if(c)toast(placeMsg(r,c));render()}}
+  if(moved){const c=cellAt(svgPt(sec,e),r);if(c&&canPlace(r,c.lane,c.layer))place(r,c.lane,c.layer);else{if(c)refuse(r,c);render()}}
   else{S.sel=S.sel===r.id?null:r.id;if(S.sel&&e.pointerType!=='mouse'&&!S.seen.tapHint){S.seen.tapHint=1;toast('Now tap a green slot to place it.')}render()}
 }
 
@@ -1237,7 +1329,7 @@ function renderPlan(){
       h+=`<g class="mk resolved" data-cx="${c.key}" data-ids="${ids}"><circle class="ring" cx="${x+16}" cy="${y-16}" r="8"/><text x="${x+16}" y="${y-16}">${st.dropped?'↓':'✓'}</text></g>`;
     }
     else if(st.defer){const tg=armTarget(c,st);h+=`<g class="mk deferred${tg}" data-cx="${c.key}" data-ids="${ids}">${tg===' target'?`<circle class="halo" cx="${x}" cy="${y}" r="27"/>`:''}<circle class="ring" cx="${x}" cy="${y}" r="17"/><text x="${x}" y="${y}" style="font-size:13px">W${st.defer}</text></g>
-      <g class="dtag" pointer-events="none"><text x="${x+24}" y="${y-3}">Deferred · ${TYPES[c.turn.type].owner}</text><text x="${x+24}" y="${y+15}">due end of week ${st.defer}</text></g>`}
+      <g class="dtag" pointer-events="none"><text x="${x+24}" y="${y-3}">On hold</text><text x="${x+24}" y="${y+15}">due end of week ${st.defer}</text></g>`}
     else{
       const R=20*Math.min(PK,1.3),C=2*Math.PI*R,f=Math.max(0,st.remain/CONFIG.clashTime),urg=st.remain<6,tg=armTarget(c,st);
       h+=`<g class="mk active${urg&&!tg?' urgent':''}${tg}" data-cx="${c.key}" data-ids="${ids}" style="${urg&&!tg?`animation-delay:-${(performance.now()%800)/1000}s`:''}">${tg===' target'?`<circle class="halo" cx="${x}" cy="${y}" r="${R+10}"/>`:''}${tg===' nope'&&S.armed==='drop'?`<text class="why" x="${x}" y="${y+R+16}">Can't drop: duct or drain</text>`:''}<circle class="bg" cx="${x}" cy="${y}" r="${R}"/><circle class="ring" cx="${x}" cy="${y}" r="${R}"/>
@@ -1245,7 +1337,7 @@ function renderPlan(){
     }
   }
   // The most urgent open crossing gets a callout with a 45-degree leader
-  const top=S.armed?null:openCx().filter(c=>!S.cx[c.key].defer).sort((a,b)=>S.cx[a.key].remain-S.cx[b.key].remain)[0];
+  const top=S.armed||S.tut?null:openCx().filter(c=>!S.cx[c.key].defer).sort((a,b)=>S.cx[a.key].remain-S.cx[b.key].remain)[0];
   if(top){
     const x=doorX(top.turn.door)+lDx(top.turn.layer),y=laneY(top.thru),R=20*Math.min(PK,1.3),k=R*0.7,d=18,w=262,hh=56,left=x-k-d-w>=8;
     const ex=left?x-k:x+k,ey=y-k,cx2=left?ex-d:ex+d,cy2=ey-d,bx=left?cx2-w:cx2,by=cy2-hh;
@@ -1261,9 +1353,9 @@ let tipKey=null,tipXY=null;
 function whyText(key){
   const c=S.list.find(x=>x.key===key),st=S.cx[key];if(!c||!st)return null;
   const A=`<b>${c.turn.id}</b>`,B=`<b>${c.thru.id}</b>`,R=room(c.turn.door);
-  if(st.area)return `Clash Area at ${R}: ${A} × ${B}. It was parked and never decided, so both runs are stuck.`;
+  if(st.area)return `Clash Area at ${R}: ${A} × ${B}. It was logged, not solved, so both runs are stuck.`;
   if(st.resolved)return st.dropped?`Decided: <b>${st.dropped}</b> drops under the other run at ${R}.`:`Settled late by the design team at ${R}.`;
-  const why=`${A} turns into ${R} here. ${B} is in the same layer (L${c.turn.layer+1}), nearer the rooms, and carries on to ${room(c.thru.door)}, so ${A} has to cut across it.`;
+  const why=`${A} turns into ${R} here. ${B} is in the same layer (layer ${c.turn.layer+1}), nearer the rooms, and carries on to ${room(c.thru.door)}, so ${A} has to cut across it.`;
   if(st.defer)return `${why}<br>Deferred until the end of week ${st.defer}.`;
   return `${why}<br>Fix: move one of them to another layer or lane, or use a power-up. <b>${Math.ceil(st.remain)} s</b> until it hardens into a Clash Area.`;
 }
@@ -1321,14 +1413,15 @@ function renderPanels(){
   setHTML('#weekN',`Week ${S.week}`);setHTML('#weekLeft',`Meeting in ${left} s`);setHTML('#dialTxt',`W${S.week}`);
   $('#dialArc').setAttribute('stroke-dasharray',`${(100*S.weekT/CONFIG.weekLen).toFixed(1)} 100`);
   setHTML('#fitted',String(S.connected));
-  setHTML('#slots',Array.from({length:CONFIG.maxAreas},(_,i)=>`<i${i<a?' class="on"':''}></i>`).join(''));
+  const hit=!!fresh(S.strikeAt,1.4);$('.areas').classList.toggle('hit',hit);
+  setHTML('#slots',Array.from({length:CONFIG.maxAreas},(_,i)=>i===a-1&&hit?`<i class="on hit" style="${ago(S.strikeAt)}"></i>`:`<i${i<a?' class="on"':''}></i>`).join(''));
   $('#slots').setAttribute('aria-label',`Clash Areas: ${a} of ${CONFIG.maxAreas}`);
   $('#rankChip').hidden=!S.ranked;if(S.ranked)setHTML('#rankChip',`${esc(NET.nick)} · <b>${S.round}</b>`);
   // Card dock: icon + count; a card won at the meeting pops in
   const g=S.gained&&fresh(S.gained.at,1)?S.gained:null;
   setHTML('#dock',['drop','reroute','defer'].map((k,i)=>`<div class="pu${S.hand[k]?'':' off'}"><button class="cardic${S.armed===k?' armed':''}${g&&g.k===k?' new':''}" data-card="${k}" ${S.hand[k]?'':'disabled'} aria-label="${CARDS[k].name}, ${S.hand[k]} left" title="${CARDS[k].name} (key ${i+1})">
     <svg><use href="#ic-c-${k}"/></svg><span class="n">${S.hand[k]}</span></button><b>${CARDS[k].name}</b></div>`).join(''));
-  setHTML('#armed',S.armed?{drop:'Drop is armed: click a crossing it can fix · Esc cancels',defer:'Defer is armed: click a crossing to park it · Esc cancels',reroute:'Reroute is armed: click a run or a waiting service · Esc cancels'}[S.armed]:'');
+  setHTML('#armed',S.armed&&!S.tut?{drop:'Drop is armed: click a crossing it can fix · Esc cancels',defer:'Defer is armed: click a crossing to put it on hold · Esc cancels',reroute:'Reroute is armed: click a run or a waiting service · Esc cancels'}[S.armed]:'');
   if(ui.logOpen)ui.logSeen=S.log.length;
   setHTML('#logN',S.log.length>ui.logSeen?String(S.log.length-ui.logSeen):'');
   setHTML('#log',S.log.length?S.log.map(l=>`<li class="${l.kind}"><span class="w">W${l.week}</span>${l.text}</li>`).join(''):'<li>Decisions you name appear here. Clash Areas do too.</li>');
@@ -1361,7 +1454,7 @@ function applyHL(){
   document.querySelectorAll('#plan [data-room]').forEach(el=>el.querySelector('.ric').classList.toggle('hot',doors.has(+el.dataset.room)));
 }
 
-function render(){renderSec();renderPlan();renderPanels();applyHL();rotateCheck()}
+function render(){renderSec();renderPlan();renderPanels();applyHL();rotateCheck();if(S.tut){tutCheck();tutLayout()}else if(!$('#coach').hidden){$('#coach').hidden=true;$('#spot').hidden=true}}
 
 // ---------- Online: Kahoot-style games on Firebase (GitHub Pages build) ----------
 // firebase-config.js sets window.MINIMEP_FIREBASE; net.js connects and fires 'mininet-ready' with window.MiniNet.
@@ -1449,7 +1542,7 @@ function countdown(done){
   const n0=NET.players.length;$('#cdsub').textContent=`${n0} player${n0===1?'':'s'} · same arrivals for everyone`;
   const step=()=>{
     if(i===steps.length){el.classList.remove('show');done();return}
-    n.textContent=steps[i++];n.classList.remove('pop');void n.offsetWidth;n.classList.add('pop');
+    snd('count',{go:i===steps.length-1});n.textContent=steps[i++];n.classList.remove('pop');void n.offsetWidth;n.classList.add('pop');
     setTimeout(step,CONFIG.countdownMs);
   };
   step();
@@ -1566,11 +1659,136 @@ function togglePause(){
 }
 $('#bPause').addEventListener('click',togglePause);
 
+
+// ---------- Tutorial: a guided first game on the real board ----------
+// Scripted arrivals; the clock waits for the player until beat 8. The bubble says what to do, never what you'll hear.
+const tutDone=()=>{try{return !!localStorage.getItem('minimep.tutDone')}catch(e){return true}};
+const TUT=[null,
+  {t:'Your first corridor',x:'One hospital corridor, one level. Services arrive at the riser on the left, and each one needs a place in the ceiling. The clock waits while you learn.',go:'Start',at:'center'},
+  {t:'Fit it in its band',x:'Drag SA-1 into a green slot, or tap it and then tap a slot. Ducts go in the ducts band; here that\u2019s Layer 3. A layer is one row of height; a band is the layers a trade agreed to use.',at:'sec'},
+  {t:'That\u2019s a crossing',x:'MG-1 turns into the Nurse base. CHW-1 is in the same layer, nearer the rooms, and carries on to the Office. So they cross. The ring counts down; it\u2019s paused for now.',go:'Next',at:'cx:MG-1'},
+  {t:'Fix it with a move',x:'Move MG-1 down to Layer 1, the highlighted slot. It\u2019s still in the pipes band, and nothing there is in its way.',at:'sec'},
+  {t:'Power-up: Drop',x:'FP-1 crosses CHW-1 at the Treatment room, and no move fixes this one. Arm Drop (or press 1), then click the crossing: FP-1 dips under where it turns.',at:'cx:FP-1+drop'},
+  {t:'Power-up: Reroute',x:'EA-1 crosses SA-1. Both are ducts, and ducts can\u2019t dip, so Drop won\u2019t work here. Arm Reroute (or press 2), then click EA-1: it goes through the next corridor, and the crossing goes with it.',at:'run:EA-1+reroute'},
+  {t:'Power-up: Defer',x:'FP-2 crosses MG-1 at Clean utility. Not ready to decide? Arm Defer (or press 3), then click the crossing. It goes on hold until the end of next week; then its ring runs again.',at:'cx:FP-2+defer'},
+  {t:'Now leave one alone',x:'CW-1 crosses CHW-1 at Ward 1. Don\u2019t touch it. Watch what happens when nobody decides.',at:'cx:CW-1'},
+  {t:'Clash Area 1 of 3',x:'Logged, not solved. Both runs are stuck, and one of your three strikes is gone. The third stalls the project.',go:'Next',at:'cx:CW-1'},
+  {t:'Power-up: Extra Layer',x:'Every week ends in a meeting. In weeks 2 and 4 the architect also lowers the ceiling 100 mm: one more layer. Pick the band that needs it most.',at:'left',modal:'height'},
+  {t:'Pick a power-up',x:'Now pick one power-up to take back to site. Meetings are the only place to get more.',at:'left',modal:'week'}
+];
+const TUT_N=TUT.length-1;
+const tutCx=id=>S.list.find(c=>c.turn.id===id)||S.list.find(c=>c.thru.id===id);
+function startTutorial(){
+  NET.practice=true;newGame();hideModal();
+  const soil=S.runs.find(r=>r.type==='SOIL');if(soil)soil.lane=0;              // a drain that is out of the way
+  const c=makeRun('CHW',5);Object.assign(c,{lane:0,layer:1,placed:true,counted:true});
+  S.tut={beat:0,run:false,only:null,arm:null};S.seen.cross=1;S.seen.tapHint=1;S.nextSpawn=1e9;
+  syncCrossings();tutGo(1);
+}
+function tutGo(n){
+  const T=S.tut;if(!T)return;T.beat=n;T.only=null;T.arm=null;T.focus=n===2?'SA-1':n===4?'MG-1':null;T.busy=true;   // busy: the redraws a spawn makes mustn't count as the player's move
+  T.rr=null;
+  if(n===2){spawn('SA',4);T.only=(r,lane,layer)=>r.type==='SA'&&layer===2}
+  else if(n===3){const r=spawn('MG',3);place(r,2,1)}
+  else if(n===4)T.only=(r,lane,layer)=>r.type==='MG'&&layer===0&&lane===2;
+  else if(n===5){const r=spawn('FP',1);place(r,3,1);T.arm='drop'}
+  else if(n===6){const sa=byId('SA-1'),r=spawn('EA',sa.lane===0?2:5);place(r,sa.lane===0?2:0,sa.layer);T.arm='reroute';T.rr=r.id}   // a duct crossing a duct: Drop can't help
+  else if(n===7){const r=spawn('FP',2);place(r,3,0);T.arm='defer'}
+  else if(n===8){const r=spawn('CW',0);place(r,1,1);const c=tutCx('CW-1');if(c)S.cx[c.key].remain=6;T.run=true}
+  else if(n===9)T.run=false;
+  else if(n===10){S.offer=['drop','defer'];S.pendingHeight=true;showModal('height');snd('week')}
+  else if(n===11){}   // choosing the band opens the power-up pick
+  else if(n>TUT_N){T.busy=false;tutFinish();return}
+  T.busy=false;snd('coach');tutShow();render();
+}
+// Called on every redraw: has the player done what the coach asked?
+function tutCheck(){
+  const T=S.tut;if(!T||T.busy||S.over||T.beat<2||T.beat>TUT_N)return;const b=T.beat;
+  const ok=b===2?!!(byId('SA-1')||{}).placed:b===4?(byId('MG-1')||{}).layer===0:b===5?!openCx().some(c=>c.turn.id==='FP-1')
+    :b===6?!byId('EA-1'):b===7?S.list.some(c=>c.turn.id==='FP-2'&&S.cx[c.key].defer):b===8?S.areas.length>0:b===10?S.heightGiven>0:b===11?S.week>=2:false;
+  if(!ok)return;
+  if(b!==8)snd('done');
+  if(b<5||b>7){tutGo(b+1);return}
+  T.busy=T.pause=true;   // a power-up: let it play out on a clear board, then the next beat
+  setTimeout(()=>{if(S.tut!==T)return;T.busy=T.pause=false;$('#fx').innerHTML='';hideTip();tutGo(b+1)},2600);
+}
+function tutFinish(){
+  S.tut.beat=TUT_N+1;try{localStorage.setItem('minimep.tutDone','1')}catch(e){}
+  $('#coach').hidden=true;$('#spot').hidden=true;snd('finish');showModal('tutdone');
+}
+function tutShow(){
+  const T=S.tut,st=TUT[T.beat];
+  $('#coachN').textContent=`TUTORIAL · STEP ${T.beat} OF ${TUT_N}`;$('#coachT').textContent=st.t;$('#coachX').textContent=matchMedia('(pointer:coarse)').matches?st.x.replace(/ \(or press \d\)/,'').replace(/\bclick\b/g,'tap'):st.x;
+  const g=$('#coachGo');g.hidden=!st.go;g.textContent=st.go||'';
+  $('#coach').hidden=false;tutLayout();
+}
+// Spotlight the part being taught and put the bubble beside it (re-placed on every redraw, so it follows the layout)
+function tutLayout(){
+  const co=$('#coach'),sp=$('#spot'),T=S&&S.tut;
+  if(!T||T.pause||T.beat<1||T.beat>TUT_N||ui.rotating||ui.peek||(S.modal&&S.modal!==TUT[T.beat].modal)){co.hidden=true;sp.hidden=true;return}
+  co.hidden=false;
+  const at=TUT[T.beat].at,vw=innerWidth,vh=innerHeight,rect=el=>el&&el.getBoundingClientRect();
+  co.classList.toggle('over',!!S.modal);
+  // at: 'sec', 'cx:<run id>' (its crossing) or 'run:<run id>' (the run itself), plus '+<power-up>' for its button
+  let holes=[];
+  if(at==='sec')holes=[rect($('#secCard'))];
+  else if(at.includes(':')){const [kind,rest]=at.split(':'),[id,card]=rest.split('+'),c=kind==='cx'&&tutCx(id);
+    holes=[kind==='cx'?rect(c&&$(`#plan [data-cx="${c.key}"]`)):rect($(`#plan .run[data-id="${id}"]`)),card&&rect($(`#dock [data-card="${card}"]`))]}
+  holes=holes.filter(r=>r&&r.width).map(r=>({left:r.left-10,top:r.top-10,right:r.right+10,bottom:r.bottom+10}));
+  for(let i=0;i<holes.length;i++)for(let j=i+1;j<holes.length;j++){const a=holes[i],b=holes[j];   // overlapping holes merge into one
+    if(a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom){holes[i]={left:Math.min(a.left,b.left),top:Math.min(a.top,b.top),right:Math.max(a.right,b.right),bottom:Math.max(a.bottom,b.bottom)};holes.splice(j,1);j=i}}
+  const A=holes[0],R=A?holes.reduce((u,h)=>({left:Math.min(u.left,h.left),top:Math.min(u.top,h.top),right:Math.max(u.right,h.right),bottom:Math.max(u.bottom,h.bottom)})):null;
+  sp.hidden=at==='left';sp.classList.toggle('full',at==='center');
+  if(!sp.hidden){const r=14,rr=h=>`M${h.left+r} ${h.top}H${h.right-r}A${r} ${r} 0 0 1 ${h.right} ${h.top+r}V${h.bottom-r}A${r} ${r} 0 0 1 ${h.right-r} ${h.bottom}H${h.left+r}A${r} ${r} 0 0 1 ${h.left} ${h.bottom-r}V${h.top+r}A${r} ${r} 0 0 1 ${h.left+r} ${h.top}Z`;
+    const d=`M0 0H${vw}V${vh}H0Z`+(at==='center'?'':holes.map(rr).join(''));
+    if(sp._d!==d){sp._d=d;sp.innerHTML=`<svg width="${vw}" height="${vh}"><path fill-rule="evenodd" d="${d}"/></svg>`}}
+  const W=co.offsetWidth,H=co.offsetHeight,arr=$('#coachArr'),cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+  let x,y,side=null;
+  if(!R){x=at==='left'?16:(vw-W)/2;y=at==='left'?Math.min(120,vh-H-12):(vh-H)/2}
+  else if(at==='sec'||at.includes('+')){   // beside the target (right, else left) without covering the other lit part; else beside both, else below
+    const yA=cl((A.top+A.bottom)/2-H/2,12,vh-H-12),yR=cl((R.top+R.bottom)/2-H/2,12,vh-H-12),clear=(x,y)=>holes.every(h=>x>=h.right||x+W<=h.left||y>=h.bottom||y+H<=h.top);
+    const opts=[[A.right+18,yA,'left'],[A.left-18-W,yA,'right'],[R.right+18,yR,'left'],[R.left-18-W,yR,'right']].filter(([x,y])=>x>=12&&x+W<=vw-12&&clear(x,y));
+    if(opts.length)[x,y,side]=opts[0];
+    else{x=cl((R.left+R.right)/2-W/2,12,vw-W-12);y=cl(R.bottom+18,12,vh-H-12);side='top'}}
+  else{x=cl((R.left+R.right)/2-W/2,12,vw-W-12);y=R.bottom+18;side='top';if(y+H>vh-12){y=cl(R.top-18-H,12,vh-H-12);side='bottom'}}
+  co.style.left=x+'px';co.style.top=y+'px';
+  arr.hidden=!side;
+  if(side==='left'||side==='right')Object.assign(arr.style,{left:side==='left'?'-8px':'',right:side==='right'?'-8px':'',top:cl((A.top+A.bottom)/2-y-8,14,H-30)+'px',bottom:''});
+  else if(side)Object.assign(arr.style,{left:cl((A.left+A.right)/2-x-8,14,W-30)+'px',right:'',top:side==='top'?'-8px':'',bottom:side==='bottom'?'-8px':''});
+}
+$('#coachGo').addEventListener('click',()=>{if(S.tut&&TUT[S.tut.beat]&&TUT[S.tut.beat].go)tutGo(S.tut.beat+1)});
+$('#coachSkip').addEventListener('click',()=>{try{localStorage.setItem('minimep.tutDone','1')}catch(e){}$('#coach').hidden=true;$('#spot').hidden=true;newGame()});
+addEventListener('resize',()=>{if(S&&S.tut)tutLayout()});
+
+// ---------- Sound (sound.js): event cues, and the music follows what is on the board ----------
+const snd=(id,o)=>{try{if(window.MiniSound)MiniSound.cue(id,o)}catch(e){}};
+const sndVol=()=>window.MiniSound?MiniSound.volume:70,sndOff=()=>!!(window.MiniSound&&MiniSound.muted);
+const soundBtn=()=>`<button class="tool" data-act="sound" aria-pressed="${sndOff()}" aria-label="${sndOff()?'Sound off: press to turn on (M)':'Sound on: press to mute (M)'}" title="Sound on or off (M)"><svg><use href="#ic-t-${sndOff()?'mute':'sound'}"/></svg></button>`;
+function toggleSound(){if(window.MiniSound)MiniSound.toggleMute()}
+function syncSound(){
+  document.querySelectorAll('#bSound,[data-act="sound"]').forEach(b=>{b.outerHTML=b.id==='bSound'?soundBtn().replace('class="tool" data-act="sound"','class="tool" id="bSound"'):soundBtn()});
+  const v=$('#vol');if(v&&document.activeElement!==v){v.value=sndVol();$('#volN').textContent=sndVol()+'%'}
+}
+$('.tools').addEventListener('click',e=>{if(e.target.closest('#bSound'))toggleSound()});
+$('#modal').addEventListener('input',e=>{if(e.target.id==='vol'&&window.MiniSound){MiniSound.setVolume(e.target.value);$('#volN').textContent=e.target.value+'%'}});
+if(window.MiniSound){
+  MiniSound.onChange(syncSound);syncSound();
+  MiniSound.watch(()=>{
+    const m=S.modal;
+    if(m==='countdown')return{mode:'count'};
+    if(SCREENS.has(m))return{mode:'landing',land0:ui.land0};
+    if(S.over)return{mode:'over'};
+    return{mode:'game',muffled:!!m||!!ui.rotating||!!(S.tut&&!S.tut.run),horns:!!S.tut&&!m,week:S.week,areas:S.areas.length,extra:S.heightGiven,
+      runs:S.runs.filter(r=>r.placed).map(r=>({kind:TYPES[r.type].shape,room:r.door})),
+      cx:S.list.map(c=>{const st=S.cx[c.key];return st&&!st.area&&!st.resolved?{key:c.key,room:c.turn.door,left:st.remain,deferred:!!st.defer}:null}).filter(Boolean)};
+  });
+}
+
 // ---------- Theme: follows the system until the player picks, then remembers (the head script applies it before first paint) ----------
 const mqDark=matchMedia('(prefers-color-scheme: dark)');
 function isDark(){const t=document.documentElement.dataset.theme;return t?t==='dark':mqDark.matches}
 function applyTheme(){const d=isDark();$('#bTheme').innerHTML=`<svg><use href="#ic-t-${d?'sun':'moon'}"/></svg>`;$('#bTheme').setAttribute('aria-label',d?'Switch to light theme':'Switch to dark theme')}
-function toggleTheme(){const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('minimep.theme',t)}catch(e){}applyTheme();render()}
+function toggleTheme(){const t=isDark()?'light':'dark';snd('theme',{dark:t==='dark'});document.documentElement.dataset.theme=t;try{localStorage.setItem('minimep.theme',t)}catch(e){}applyTheme();render()}
 mqDark.addEventListener('change',applyTheme);
 $('#bTheme').addEventListener('click',toggleTheme);
 applyTheme();
@@ -1587,10 +1805,12 @@ $('#bUpright').addEventListener('click',()=>{ui.upright=true;rotateCheck()});
 $('#bRestart').addEventListener('click',()=>{newGame();});
 addEventListener('keydown',e=>{
   if(e.target&&e.target.tagName==='INPUT'){if(e.key==='Enter'){const id=e.target.id;if(id==='pin')submitPin();else if(id==='nick')joinWithNick();else if(id==='cmt')sendComment()}return}
+  if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&$('#htp')){e.preventDefault();howStep((ui.how||1)+(e.key==='ArrowRight'?1:-1));return}
   if(e.key===' '){e.preventDefault();if(S.modal==='intro')startGame();else togglePause()}
   else if((e.key==='p'||e.key==='P')&&!e.repeat&&(S.modal==='week'||S.modal==='height')){ui.peekKey=true;setPeek(true)}
   else if(e.key==='Escape'&&ui.peek){setPeek(false)}
   else if(e.key==='Escape'){if(S.modal==='drawer'){ui.logOpen=ui.boardOpen=false;drawerClosed();renderPanels();return}S.armed=null;S.sel=null;render()}
+  else if((e.key==='m'||e.key==='M')&&!e.repeat){toggleSound();toast(window.MiniSound&&MiniSound.muted?'Sound off. Press M to turn it back on.':'Sound on.')}
   else if(e.key==='r'||e.key==='R'){if(!S.modal||S.over)newGame()}
   else if(['1','2','3'].includes(e.key))arm(['drop','reroute','defer'][+e.key-1]);
 });
@@ -1605,7 +1825,7 @@ function frame(now){
 
 // Debug and test hook (same idea as the prototype's __vp)
 window.__toy={get S(){return S},CONFIG,TYPES,newGame,spawn,tick,endWeek,takeOffer,render,
-  start(){hideModal();render()},
+  start(){hideModal();render()},startTutorial,tutGo,
   place(id,lane,layer){const r=byId(id);if(!r||!canPlace(r,lane,layer))return false;place(r,lane,layer);return true},
   crossings(){return S.list.map(c=>c.key)},
   arm,applyCx,applyRun:id=>applyRun(byId(id)),chooseHeight,reband,gameOver,NET};
